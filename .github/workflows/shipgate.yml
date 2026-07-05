@@ -1,0 +1,55 @@
+name: ShipGate release gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  shipgate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect PR diff
+        run: git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+
+      - name: Ask ShipGate for a release verdict
+        id: verdict
+        run: |
+          jq -n --rawfile diff /tmp/pr.diff \
+            --arg repo "${{ github.repository }}" \
+            --arg target "${{ vars.SHIPGATE_TARGET_URL }}" \
+            --argjson pr ${{ github.event.pull_request.number }} \
+            '{repo: $repo, prNumber: $pr, sha: "${{ github.sha }}", diff: $diff, targetUrl: $target}' \
+          | curl -sf -X POST "${{ vars.SHIPGATE_AGENT_URL }}/analyze" \
+              -H 'content-type: application/json' -d @- > /tmp/verdict.json
+          echo "decision=$(jq -r .verdict.decision /tmp/verdict.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment verdict on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const v = require('/tmp/verdict.json');
+            const icon = { ship: '🟢', 'ship-with-warnings': '🟡', block: '🔴' }[v.verdict.decision];
+            const body = [
+              `## ${icon} ShipGate verdict: **${v.verdict.decision}**`,
+              '', v.plan.summary, '',
+              '### Experiments',
+              ...v.results.map(r => `- **[${r.status}]** ${r.title} — ${r.detail}`),
+              '### Reasons',
+              ...v.verdict.reasons.map(r => `- ${r}`),
+              '### Advice',
+              ...v.verdict.advice.map(a => `- ${a}`),
+            ].join('\n');
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: context.issue.number, body,
+            });
+
+      - name: Gate
+        if: steps.verdict.outputs.decision == 'block'
+        run: echo "ShipGate blocked this release" && exit 1

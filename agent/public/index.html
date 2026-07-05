@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShipGate — release evidence</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
+          --ship:#3fb950; --warn:#d29922; --block:#f85149; }
+  * { box-sizing:border-box; margin:0 }
+  body { background:var(--bg); color:var(--text); font:15px/1.55 -apple-system,"Segoe UI",sans-serif; padding:2rem; max-width:1000px; margin:0 auto }
+  h1 { font-size:1.5rem; margin-bottom:.25rem } h1 span{color:var(--ship)}
+  .sub { color:var(--dim); margin-bottom:2rem }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.25rem 1.5rem; margin-bottom:1.25rem }
+  .verdict { display:inline-block; padding:.2rem .7rem; border-radius:999px; font-weight:700; font-size:.85rem; text-transform:uppercase }
+  .ship { background:rgba(63,185,80,.15); color:var(--ship) }
+  .ship-with-warnings { background:rgba(210,153,34,.15); color:var(--warn) }
+  .block { background:rgba(248,81,73,.15); color:var(--block) }
+  .meta { color:var(--dim); font-size:.85rem; margin-left:.75rem }
+  .summary { margin:.75rem 0; color:var(--text) }
+  ul { padding-left:1.25rem; margin:.5rem 0 }
+  li { margin:.2rem 0 }
+  .result { border-left:3px solid var(--border); padding:.4rem .9rem; margin:.6rem 0; font-size:.92rem }
+  .result.pass { border-color:var(--ship) } .result.warn{border-color:var(--warn)}
+  .result.fail, .result.error { border-color:var(--block) }
+  .status { font-weight:700; text-transform:uppercase; font-size:.75rem; margin-right:.5rem }
+  .pass .status{color:var(--ship)} .warn .status{color:var(--warn)} .fail .status,.error .status{color:var(--block)}
+  .skipped .status{color:var(--dim)}
+  .detail { color:var(--dim) }
+  .section-label { font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin-top:1rem }
+  .empty { color:var(--dim); text-align:center; padding:3rem }
+</style>
+</head>
+<body>
+  <h1>🚦 Ship<span>Gate</span></h1>
+  <p class="sub">Diff-aware release experiments — evidence from Elasticsearch, verdicts by Gemini</p>
+  <div id="feed"><p class="empty">Loading evidence…</p></div>
+<script>
+async function load() {
+  const res = await fetch('/api/evidence');
+  const { docs } = await res.json();
+  const feed = document.getElementById('feed');
+  if (!docs.length) { feed.innerHTML = '<p class="empty">No runs yet. POST a diff to /analyze.</p>'; return; }
+  feed.innerHTML = docs.map(d => `
+    <div class="card">
+      <div>
+        <span class="verdict ${d.verdict.decision}">${d.verdict.decision}</span>
+        <span class="meta">${d.repo}${d.prNumber ? ' #' + d.prNumber : ''} · ${new Date(d['@timestamp']).toLocaleString()} · ${d.agent.mocked ? 'heuristic fallback' : d.agent.model} · ${(d.agent.totalMs/1000).toFixed(1)}s</span>
+      </div>
+      <p class="summary">${esc(d.plan.summary)}</p>
+      <div class="section-label">Predicted risks</div>
+      <ul>${d.plan.risks.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+      <div class="section-label">Experiments</div>
+      ${d.results.map(r => `
+        <div class="result ${r.status}">
+          <span class="status">${r.status}</span><strong>${esc(r.title)}</strong>
+          <div class="detail">${esc(r.detail)}</div>
+          ${(r.findings||[]).map(f => `<div class="detail">→ <code>${esc(f.file)}</code>: ${esc(f.issue)} — ${esc(f.suggestion)}</div>`).join('')}
+        </div>`).join('')}
+      <div class="section-label">Verdict reasons</div>
+      <ul>${d.verdict.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+      ${d.verdict.advice?.length ? `<div class="section-label">Advice</div><ul>${d.verdict.advice.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+    </div>`).join('');
+}
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
+load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

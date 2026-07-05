@@ -1,0 +1,43 @@
+diff --git a/demo-app/src/index.ts b/demo-app/src/index.ts
+index 1111111..2222222 100644
+--- a/demo-app/src/index.ts
++++ b/demo-app/src/index.ts
+@@ -10,6 +10,10 @@ const app = new Hono();
++interface CacheEntry { generatedAt: string; expiresAtMs: number; body: unknown }
++const searchCache = new Map<string, CacheEntry>();
++const TTL_MS = 60_000;
++
+ app.get("/api/search", (c) => {
+   const q = c.req.query("q") ?? "alpha";
+-  const results = PRODUCTS.filter((p) => p.name.includes(q)).slice(0, 10);
+-  return c.json({ results });
++  const t = Date.now();
++
++  const cached = searchCache.get(q);
++  if (cached && cached.expiresAtMs > 0) {
++    return c.json({ cache: "hit", generatedAt: cached.generatedAt, results: cached.body });
++  }
++
++  // relevance scoring v2
++  const scored = PRODUCTS.map((p) => {
++    let score = 0;
++    for (let i = 0; i < 200; i++) score += (p.name.includes(q) ? 2 : 0.1) * Math.sqrt(i + p.price);
++    return { ...p, score };
++  })
++    .sort((a, b) => b.score - a.score)
++    .slice(0, 10);
++
++  const entry: CacheEntry = { generatedAt: new Date(t).toISOString(), expiresAtMs: t + TTL_MS, body: scored };
++  searchCache.set(q, entry);
++  return c.json({ cache: "miss", generatedAt: entry.generatedAt, results: scored });
+ });
++
++app.post("/api/sync-prices", async (c) => {
++  try {
++    const res = await fetch("https://supplier.invalid/prices", { signal: AbortSignal.timeout(1500) });
++    const prices = await res.json();
++    return c.json({ synced: true, count: (prices as unknown[]).length });
++  } catch {
++    return c.json({ synced: false }, 502);
++  }
++});
