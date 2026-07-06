@@ -91,14 +91,37 @@ markers — catching "cache serves stale data after expiry" in seconds, not hour
 ## Deploy to Cloud Run
 
 ```bash
-gcloud run deploy shipgate-agent --source . --region asia-northeast1 \
-  --set-env-vars GEMINI_API_KEY=…,ELASTICSEARCH_URL=…,ELASTICSEARCH_API_KEY=…
-gcloud run deploy shipgate-demo --source demo-app --region asia-northeast1 \
-  --set-env-vars SHIPGATE_TESTING=1
+PROJECT=$(gcloud config get-value project)
+for svc in demo agent; do
+  cp $([ $svc = demo ] && echo demo-app || echo agent)/Dockerfile Dockerfile
+  gcloud builds submit --tag gcr.io/$PROJECT/shipgate-$svc:v1 --quiet
+  rm Dockerfile
+done
+gcloud run deploy shipgate-demo  --image gcr.io/$PROJECT/shipgate-demo:v1  --region asia-northeast1 \
+  --allow-unauthenticated --set-env-vars SHIPGATE_TESTING=1
+gcloud run deploy shipgate-agent --image gcr.io/$PROJECT/shipgate-agent:v1 --region asia-northeast1 \
+  --allow-unauthenticated --memory 1Gi --timeout 600 \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,ELASTICSEARCH_URL=…,ELASTICSEARCH_API_KEY=…"
 ```
+
+No Gemini key needed on Cloud Run — the agent gets its OAuth token from the metadata server.
+Gotcha: `/healthz` is intercepted (404) by Google's frontend on `*.run.app`; use `/api/health`.
+
+Live deployment (hackathon):
+- agent: https://shipgate-agent-maqob3nldq-an.a.run.app (dashboard at `/`)
+- demo app: https://shipgate-demo-maqob3nldq-an.a.run.app
 
 Then set repo variables `SHIPGATE_AGENT_URL` and `SHIPGATE_TARGET_URL` and the
 `.github/workflows/shipgate.yml` gate is live.
+
+## ShipGate Historian (Elastic Agent Builder)
+
+A second agent lives *inside* Elasticsearch: `scripts/setup-elastic-historian.sh` creates an
+[Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/elastic-agent-builder)
+agent with two ES|QL tools over `shipgate-evidence`. Ask it — in Japanese or English —
+"なぜ PR 42 はブロックされた？" and it answers with cited evidence (repo, PR, timestamps,
+measured error rates) pulled via ES|QL. Use the Agent Builder chat UI in Kibana or
+`POST /api/agent_builder/converse`.
 
 ## Gemini auth: the two Google API systems (hard-won knowledge)
 
