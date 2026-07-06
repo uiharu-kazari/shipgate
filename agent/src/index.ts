@@ -10,7 +10,15 @@ import type { AnalyzeRequest } from "./types.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json({ ok: true, gemini: !!config.geminiApiKey, elasticsearch: !!config.esUrl }));
+app.get("/healthz", async (c) => {
+  const { geminiConfigured } = await import("./llm.js");
+  return c.json({
+    ok: true,
+    gemini: geminiConfigured(),
+    geminiTransport: config.gcpProject ? `vertex:${config.gcpProject}` : config.geminiApiKey ? "api-key" : "heuristic-fallback",
+    elasticsearch: !!config.esUrl,
+  });
+});
 
 // Main entrypoint — called from CI (GitHub Action) or manually with a diff.
 app.post("/analyze", async (c) => {

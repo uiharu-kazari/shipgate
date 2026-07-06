@@ -1,8 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { config } from "./config.js";
+import { generateJson, geminiConfigured } from "./llm.js";
 import type { ExperimentPlan, ExperimentResult, Verdict } from "./types.js";
-
-const ai = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
 
 // True when the last call fell back to heuristics (no/blocked API key).
 export let lastCallMocked = false;
@@ -36,22 +33,15 @@ Return STRICT JSON (no markdown fences):
   "reasons": string[],           // cite concrete numbers from the results
   "advice": string[]             // specific fixes, each actionable in <1 day
 }
-Rules: fail(load p95 over budget, stale-after-expiry, unobservable new failure path) => at least ship-with-warnings; multiple fails or a correctness fail => block.`;
+Rules — ShipGate is an EVIDENCE-BASED gate:
+- "block" requires at least one FAILED experiment (measured evidence). Never block on predicted/untested risks.
+- One failed experiment => at least ship-with-warnings; multiple fails or a correctness fail (stale data, error storm) => block.
+- All experiments pass => "ship", or "ship-with-warnings" if a serious predicted risk remains untested — and then say in advice which follow-up experiment would prove it.
+- Untested risks always go to advice, phrased as concrete next experiments or fixes.`;
 
 async function callJson<T>(system: string, user: string): Promise<T | null> {
-  if (!ai) return null;
-  try {
-    const res = await ai.models.generateContent({
-      model: config.geminiModel,
-      contents: user,
-      config: { systemInstruction: system, responseMimeType: "application/json", temperature: 0.2 },
-    });
-    const text = res.text ?? "";
-    return JSON.parse(text) as T;
-  } catch (err) {
-    console.error("[gemini] call failed, falling back to heuristics:", (err as Error).message);
-    return null;
-  }
+  if (!geminiConfigured()) return null;
+  return generateJson<T>(system, user, 0.2);
 }
 
 export async function planExperiments(diff: string): Promise<ExperimentPlan> {

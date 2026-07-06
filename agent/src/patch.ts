@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { GoogleGenAI } from "@google/genai";
-import { config } from "./config.js";
+import { generateJson, geminiConfigured } from "./llm.js";
 import type { ExperimentResult } from "./types.js";
 
 export interface PatchProposal {
@@ -23,21 +22,16 @@ export async function proposePatch(
   sourceFiles: { path: string; content: string }[],
   results: ExperimentResult[]
 ): Promise<PatchProposal> {
-  if (config.geminiApiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
-      const res = await ai.models.generateContent({
-        model: config.geminiModel,
-        contents: `FAILED EXPERIMENTS:\n${JSON.stringify(results.filter((r) => r.status !== "pass"))}\n\nSOURCE FILES:\n${JSON.stringify(sourceFiles)}`,
-        config: { systemInstruction: PATCH_PROMPT, responseMimeType: "application/json", temperature: 0.1 },
-      });
-      const parsed = JSON.parse(res.text ?? "");
-      if (Array.isArray(parsed.files) && parsed.files.length) {
-        return { rationale: parsed.rationale, files: parsed.files, mocked: false };
-      }
-    } catch (err) {
-      console.error("[gemini] patch generation failed, using canned fallback:", (err as Error).message);
+  if (geminiConfigured()) {
+    const parsed = await generateJson<{ rationale: string; files: { path: string; content: string }[] }>(
+      PATCH_PROMPT,
+      `FAILED EXPERIMENTS:\n${JSON.stringify(results.filter((r) => r.status !== "pass"))}\n\nSOURCE FILES:\n${JSON.stringify(sourceFiles)}`,
+      0.1
+    );
+    if (parsed && Array.isArray(parsed.files) && parsed.files.length) {
+      return { rationale: parsed.rationale, files: parsed.files, mocked: false };
     }
+    console.error("[gemini] patch generation failed, using canned fallback");
   }
   // Canned fallback for the bundled demo: the pre-authored fixed variant of the demo app.
   const fixed = readFileSync(new URL("../../demo-app/src/index.fixed.ts", import.meta.url), "utf8");
