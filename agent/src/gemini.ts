@@ -21,7 +21,8 @@ Return STRICT JSON matching this TypeScript type (no markdown fences):
   },
   "timewarp": {                 // include ONLY if the diff has time-dependent behavior (TTL, expiry, retry backoff, cron)
     "reason": string,
-    "probes": [{"name": string, "path": "/api/...", "offsetsSec": [0, 61, 3601], "expectation": string}]
+    "probes": [{"name": string, "path": "/api/...", "offsetsSec": [0, 61, 3601], "freshWindowSec": 60, "expectation": string}]
+    // freshWindowSec = the TTL you read from the diff; offsets inside it may serve cached data legitimately
   },
   "observability": { "reason": string }   // include if new failure paths / external calls appear
 }
@@ -105,12 +106,15 @@ export function heuristicPlan(diff: string): ExperimentPlan {
     plan.load = { reason: "Diff changes request handling", routes, durationSec: 10, connections: 25, p95BudgetMs: 300 };
   }
   if (timey && routes.length) {
+    const ttlMatch = diff.match(/TTL\w*\s*=\s*([\d_]+)/i);
+    const freshWindowSec = ttlMatch ? Number(ttlMatch[1].replace(/_/g, "")) / 1000 : undefined;
     plan.timewarp = {
       reason: "Diff contains TTL/expiry logic",
       probes: routes.slice(0, 2).map((r) => ({
         name: `expiry-behavior ${r.path}`,
         path: r.path,
         offsetsSec: [0, 5, 61, 3601],
+        freshWindowSec,
         expectation: "Responses after the expiry boundary must not serve stale data",
       })),
     };

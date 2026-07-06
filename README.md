@@ -38,6 +38,24 @@ diff, because the agent reads the change and predicts what could go wrong in pro
 - **Elasticsearch (sponsor)**: evidence store + verdict history + dashboard backend
 - **DevOps loop**: GitHub Actions workflow gates PRs on the agent's verdict
 
+## The demo arc (self-healing release gate)
+
+```bash
+npm install && ./demo.sh
+```
+
+```
+ACT 1  risky PR       → agent plans & runs experiments        → 🔴 BLOCK
+                        (stale cache after TTL, 100% error storm, 3 unobservable paths)
+ACT 2  agent fixes it → POST /propose-patch rewrites the file
+                        (expiry check corrected, failure paths instrumented, graceful degradation)
+ACT 3  agent re-runs  → same experiments, patched app          → 🟢 SHIP
+```
+
+The agent doesn't just find problems — it proves them with experiments, writes the fix,
+and re-proves the fix with the same experiments. Every verdict lands in Elasticsearch, so
+the dashboard shows the block→ship evidence timeline.
+
 ## Quick start
 
 ```bash

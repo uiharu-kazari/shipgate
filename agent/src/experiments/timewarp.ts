@@ -25,11 +25,14 @@ export async function runTimewarp(plan: NonNullable<ExperimentPlan["timewarp"]>,
         samples.push({ offset, body: text.slice(0, 500), generatedAt, cacheState });
       }
 
-      // Staleness check: any sample past the largest "fresh window" boundary that
-      // still returns the t=0 generation timestamp is serving stale data.
+      // Staleness check: any sample past the fresh window that still returns the
+      // t=0 generation timestamp is serving stale data. Offsets inside the window
+      // (a legitimate cache hit) are not stale.
       const base = samples[0];
+      const freshWindow = probe.freshWindowSec ?? 0;
       const stale = samples.filter(
-        (s) => s.offset > 0 && s.generatedAt !== undefined && s.generatedAt === base.generatedAt && s.cacheState !== "miss"
+        (s) =>
+          s.offset > freshWindow && s.generatedAt !== undefined && s.generatedAt === base.generatedAt && s.cacheState !== "miss"
       );
       const lastOffset = probe.offsetsSec[probe.offsetsSec.length - 1];
       const staleAtEnd = stale.some((s) => s.offset === lastOffset);

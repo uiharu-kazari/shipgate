@@ -22,6 +22,19 @@ app.post("/analyze", async (c) => {
   return c.json(doc);
 });
 
+// Agent proposes a fix for failed experiments: send it the source files and the
+// experiment results, get back rewritten files + rationale.
+app.post("/propose-patch", async (c) => {
+  const body = (await c.req.json()) as {
+    sourceFiles?: { path: string; content: string }[];
+    results?: import("./types.js").ExperimentResult[];
+  };
+  if (!body.results) return c.json({ error: "results are required" }, 400);
+  const { proposePatch } = await import("./patch.js");
+  const proposal = await proposePatch(body.sourceFiles ?? [], body.results);
+  return c.json(proposal);
+});
+
 // Evidence feed for the dashboard.
 app.get("/api/evidence", async (c) => {
   const docs = await recentEvidence(25);

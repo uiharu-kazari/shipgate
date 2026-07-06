@@ -22,6 +22,7 @@ export interface ExperimentPlan {
       name: string;
       path: string;
       offsetsSec: number[]; // virtual clock offsets to probe at
+      freshWindowSec?: number; // offsets within this window may legitimately serve cached data
       expectation: string;
     }[];
   };
