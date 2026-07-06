@@ -100,6 +100,37 @@ gcloud run deploy shipgate-demo --source demo-app --region asia-northeast1 \
 Then set repo variables `SHIPGATE_AGENT_URL` and `SHIPGATE_TARGET_URL` and the
 `.github/workflows/shipgate.yml` gate is live.
 
+## Gemini auth: the two Google API systems (hard-won knowledge)
+
+Google currently has **two separate API surfaces** for Gemini, and they authenticate differently:
+
+| | Gemini Developer API | Vertex AI ("Gemini Enterprise Agent Platform") |
+|---|---|---|
+| Host | `generativelanguage.googleapis.com` | `aiplatform.googleapis.com` |
+| Auth | **API key** (`x-goog-api-key`) | **OAuth only** — API keys are rejected with `CREDENTIALS_MISSING` (except rare "express mode" accounts) |
+| Key source | https://aistudio.google.com/apikey | n/a — `gcloud auth`, service accounts, ADC |
+| URL shape | `/v1beta/models/{model}:generateContent` | `/v1/projects/{project}/locations/{loc}/publishers/google/models/{model}:generateContent` |
+
+Gotchas that cost us hours:
+
+- **Since 2026-06-19 the Developer API rejects *unrestricted* keys** with `API_KEY_SERVICE_BLOCKED`. A key must have an API-restrictions allowlist that explicitly includes **"Gemini API"** (the console's new name for "Generative Language API"). Keys that worked before that date silently broke.
+- **"Gemini for Google Cloud API" is a decoy** — that's the Cloud-Console-assistant product (`cloudaicompanion.googleapis.com`). Allowlisting it does NOT permit model calls.
+- In the console's restriction picker, "Gemini API" is **greyed out until the API is enabled** in the project (APIs & Services → Library → Gemini API → Enable).
+- `API_KEY_SERVICE_BLOCKED` = "this key has an allowlist and the called service isn't on it". `API_KEY_INVALID` = the key is revoked/deleted.
+
+ShipGate supports both transports (`agent/src/llm.ts`):
+
+```bash
+# Vertex (recommended — what we use): no API key at all
+export GOOGLE_CLOUD_PROJECT=your-project-id   # e.g. gen-lang-client-0140113557
+# token chain: GOOGLE_ACCESS_TOKEN env → Cloud Run metadata server → local `gcloud auth print-access-token`
+
+# or Developer API: needs a properly-restricted key
+export GEMINI_API_KEY=AIza…
+```
+
+On Cloud Run the metadata server supplies the service-account token automatically — zero config.
+
 ## Graceful degradation
 
 No Gemini key (or a blocked one)? The agent falls back to a heuristic planner/verdict so the
