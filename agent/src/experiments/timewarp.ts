@@ -28,6 +28,7 @@ export async function runTimewarp(plan: NonNullable<ExperimentPlan["timewarp"]>,
         const res = await fetch(url, {
           headers: { "x-shipgate-clock-offset": String(offset) },
           signal: AbortSignal.timeout(5000),
+          redirect: "error", // a same-host open redirect must not reach another/internal host
         });
         const text = await res.text();
         let generatedAt: string | undefined;
@@ -59,17 +60,23 @@ export async function runTimewarp(plan: NonNullable<ExperimentPlan["timewarp"]>,
       // when the app exposes no generatedAt marker.
       const base = samples[0];
       const freshWindow = probe.freshWindowSec ?? 0;
+      // A self-reported cache:"miss" is NOT trusted to mean fresh — we still verify
+      // via the generation marker / body, so a lying "miss" can't hide stale data.
+      const hasMarker = base.generatedAt !== undefined;
       const stale = samples.filter((s) => {
-        if (s.offset <= freshWindow || s.cacheState === "miss") return false;
+        if (s.offset <= freshWindow) return false;
         if (s.generatedAt !== undefined) return s.generatedAt === base.generatedAt;
-        return s.body === base.body; // no marker: identical body past the window is stale
+        return s.body === base.body; // no marker: identical body past the window is suspicious
       });
       const lastOffset = offsets[offsets.length - 1];
       const staleAtEnd = stale.some((s) => s.offset === lastOffset);
+      // With an explicit freshness marker we can hard-fail; on raw-body-only evidence
+      // we downgrade to a warning (inconclusive) rather than block on a guess.
+      const status = staleAtEnd ? (hasMarker ? "fail" : "warn") : stale.length ? "warn" : "pass";
 
       results.push({
         kind: "timewarp",
-        status: staleAtEnd ? "fail" : stale.length ? "warn" : "pass",
+        status,
         title: `Time-warp ${probe.name}`,
         detail: staleAtEnd
           ? `Stale data still served ${lastOffset}s after generation (expectation: ${probe.expectation}). Offsets serving stale: ${stale.map((s) => s.offset + "s").join(", ")}`

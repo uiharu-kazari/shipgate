@@ -19,11 +19,12 @@ export function runO11yLint(diff: string): ExperimentResult {
       .split("\n")
       .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
       .map((l) => l.slice(1))
-      // Comments must not count as observability signals ("adds no metric" in a
-      // code comment would otherwise satisfy the metric regex). Match JS/TS comment
-      // forms only (// line, /* block, and * JSDoc continuation) — not "#", which is
-      // not a TS comment and would wrongly strip real code.
-      .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l));
+      // Drop whole comment lines (// line, /* block, * JSDoc continuation), then
+      // strip trailing inline comments, so neither "// adds no metric" on its own
+      // line nor "doStuff(); // no span" can fake an observability signal. Not "#" —
+      // that is not a TS comment and would wrongly strip real code.
+      .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l))
+      .map((l) => l.replace(/\/\/.*$/, ""));
     const addedText = added.join("\n");
     const hasSignal = /(logger\.|console\.(error|warn)|metrics?\.|counter|histogram|span|trace|otel|prometheus)/i.test(addedText);
 

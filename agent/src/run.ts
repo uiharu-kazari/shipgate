@@ -1,4 +1,4 @@
-import { planExperiments, issueVerdict, lastCallMocked } from "./gemini.js";
+import { planExperiments, sanitizePlan, issueVerdict, lastCallMocked } from "./gemini.js";
 import { runLoad } from "./experiments/load.js";
 import { runTimewarp } from "./experiments/timewarp.js";
 import { runO11yLint } from "./experiments/o11y.js";
@@ -9,8 +9,9 @@ import type { AnalyzeRequest, EvidenceDoc, ExperimentResult } from "./types.js";
 export async function analyze(req: AnalyzeRequest): Promise<EvidenceDoc> {
   const t0 = Date.now();
 
-  // 1. Agent plans experiments from the diff
-  const plan = await planExperiments(req.diff);
+  // 1. Agent plans experiments from the diff, then a deterministic floor+clamp
+  // guarantees the risky-diff experiments run and thresholds stay honest.
+  const plan = sanitizePlan(await planExperiments(req.diff), req.diff);
   const planMs = Date.now() - t0;
   const mocked = lastCallMocked;
 

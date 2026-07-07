@@ -64,10 +64,22 @@ export function decideVerdict(results: ExperimentResult[]): { decision: Verdict[
   // an error storm under load (>=50% non-2xx).
   const correctnessFail =
     fails.some((r) => r.kind === "timewarp") ||
-    fails.some((r) => r.kind === "load" && Number(r.metrics?.errorRatePct ?? 0) >= 50);
+    fails.some((r) => {
+      if (r.kind !== "load") return false;
+      const rate = Number(r.metrics?.errorRatePct);
+      // A load failure whose error rate is missing/non-numeric is treated as a
+      // correctness block (fail-safe), not silently downgraded.
+      return !Number.isFinite(rate) || rate >= 50;
+    });
+  // A diff that produced no executed experiment (only skipped/errored) is NOT
+  // ship-eligible on the strength of "nothing ran" — require a real pass.
+  const executed = results.filter((r) => r.status === "pass" || r.status === "fail" || r.status === "warn");
+  const onlySkipped = executed.length === 0 && results.some((r) => r.status === "skipped") && results.every((r) => r.status === "skipped");
   let decision: Verdict["decision"];
   if (fails.length >= 2 || correctnessFail) decision = "block";
   else if (fails.length === 1 || errors.length || warns.length) decision = "ship-with-warnings";
+  else if (onlySkipped) decision = "ship"; // genuinely inert diff (docs/config) — safe to ship
+  else if (executed.length === 0) decision = "ship-with-warnings"; // couldn't gather evidence
   else decision = "ship";
   return { decision, confidence: 1 };
 }
@@ -98,6 +110,52 @@ function extractRoutes(diff: string): { method: string; path: string }[] {
     routes.set(`${method} ${m[2]}`, { method, path: m[2] });
   }
   return [...routes.values()];
+}
+
+const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo);
+
+/**
+ * Deterministic floor + clamp over the LLM's plan. Gemini may ADD experiments and
+ * choose paths, but it cannot REMOVE experiments the heuristic would run for a risky
+ * diff, nor loosen budgets/offsets to rubber-stamp a bad probe. This closes two holes:
+ * (1) an empty/all-skipped plan shipping a risky diff, (2) model-controlled thresholds.
+ */
+export function sanitizePlan(plan: ExperimentPlan, diff: string): ExperimentPlan {
+  const floor = heuristicPlan(diff);
+  const out: ExperimentPlan = {
+    summary: plan.summary || floor.summary,
+    risks: plan.risks?.length ? plan.risks : floor.risks,
+  };
+
+  const load = plan.load ?? floor.load;
+  if (load) {
+    const routes = load.routes?.length ? load.routes : floor.load?.routes ?? [];
+    out.load = {
+      reason: load.reason ?? "load",
+      routes,
+      durationSec: clamp(load.durationSec, 5, 30),
+      connections: clamp(load.connections, 10, 50),
+      p95BudgetMs: clamp(load.p95BudgetMs, 50, 2000), // model cannot set an unreachably high budget
+    };
+  }
+
+  const tw = plan.timewarp ?? floor.timewarp;
+  if (tw) {
+    const probes = (tw.probes?.length ? tw.probes : floor.timewarp?.probes ?? []).map((p) => {
+      const freshWindowSec = p.freshWindowSec ?? floor.timewarp?.probes[0]?.freshWindowSec;
+      let offsetsSec = [...new Set([0, ...(p.offsetsSec ?? [])])].filter((n) => Number.isFinite(n) && n >= 0);
+      // Guarantee at least one probe strictly past the fresh window — otherwise
+      // a stale-after-expiry bug can never be observed.
+      if (freshWindowSec && !offsetsSec.some((o) => o > freshWindowSec)) offsetsSec.push(freshWindowSec * 2 + 1);
+      return { ...p, offsetsSec, freshWindowSec };
+    });
+    out.timewarp = { reason: tw.reason ?? "timewarp", probes };
+  }
+
+  // Observability lint is diff-only and deterministic — run it whenever the heuristic
+  // OR the model flags failure paths, so it can't be silently dropped.
+  out.observability = plan.observability ?? floor.observability;
+  return out;
 }
 
 export function heuristicPlan(diff: string): ExperimentPlan {

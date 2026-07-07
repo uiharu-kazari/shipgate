@@ -57,8 +57,16 @@ test("decideVerdict computes the documented release-gate branches", () => {
       decision: "ship-with-warnings",
     },
     {
+      // No experiment ran at all — cannot ship on zero evidence (hardening: a
+      // plan that yields no executed experiments is not ship-eligible).
       name: "empty results",
       results: [],
+      decision: "ship-with-warnings",
+    },
+    {
+      // Genuinely inert diff (docs/config): a single explicit "skipped" is safe to ship.
+      name: "only skipped (inert diff)",
+      results: [result({ status: "skipped" })],
       decision: "ship",
     },
   ];
