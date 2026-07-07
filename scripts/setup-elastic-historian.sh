@@ -33,6 +33,17 @@ curl -sf -X POST "$KIBANA_URL/api/agent_builder/tools" "${H[@]}" -d '{
   }
 }' >/dev/null && echo "tool: shipgate_blocked_releases"
 
+curl -sf -X POST "$KIBANA_URL/api/agent_builder/tools" "${H[@]}" -d '{
+  "id": "shipgate_verdict_stats",
+  "type": "esql",
+  "description": "Aggregates ShipGate release history: counts verdicts grouped by decision (ship / ship-with-warnings / block) and repo, so you can answer how many releases were blocked, the block rate, etc.",
+  "tags": ["shipgate"],
+  "configuration": {
+    "query": "FROM shipgate-evidence | STATS count = COUNT(*) BY verdict.decision, repo | SORT count DESC",
+    "params": {}
+  }
+}' >/dev/null && echo "tool: shipgate_verdict_stats"
+
 curl -sf -X POST "$KIBANA_URL/api/agent_builder/agents" "${H[@]}" -d '{
   "id": "shipgate_historian",
   "name": "ShipGate Historian",
@@ -43,7 +54,7 @@ curl -sf -X POST "$KIBANA_URL/api/agent_builder/agents" "${H[@]}" -d '{
   "configuration": {
     "instructions": "You are the ShipGate Historian. ShipGate is a diff-aware release-gate agent: for each pull request it plans experiments (load tests, time-warp TTL probes, observability audits), runs them, and issues a verdict (ship / ship-with-warnings / block) stored in the shipgate-evidence index. Answer questions about this release history using your tools. Always cite concrete evidence: repo, PR number, timestamp, failed experiment titles, and measured numbers when available. When asked why something was blocked, quote the verdict reasons. Answer in the language of the question (Japanese or English).",
     "tools": [
-      { "tool_ids": ["shipgate_recent_verdicts", "shipgate_blocked_releases", "platform.core.search"] }
+      { "tool_ids": ["shipgate_recent_verdicts", "shipgate_blocked_releases", "shipgate_verdict_stats", "platform.core.search"] }
     ]
   }
 }' >/dev/null && echo "agent: shipgate_historian"

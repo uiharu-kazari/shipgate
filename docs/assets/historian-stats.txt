@@ -1,0 +1,21 @@
+ShipGateの判定を decision 別に集計した結果です：
+
+## 判定別の集計
+
+| Decision | 件数 |
+|----------|------|
+| **block** | **13件** |
+| **ship-with-warnings** | **1件** |
+| **ship** | **1件** |
+
+### リポジトリ別の内訳
+
+- **demo/shop**
+  - block: 10件
+  - ship-with-warnings: 1件
+  - ship: 1件
+
+- **uiharu-kazari/shipgate-demo-shop**
+  - block: 3件
+
+**合計**: 15件の判定が記録されており、そのうち13件（約87%）がブロックされています。
