@@ -62,14 +62,20 @@ export async function generateJson<T>(system: string, user: string, temperature 
     headers["x-goog-api-key"] = config.geminiApiKey;
   }
 
-  try {
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(120_000) });
-    const data = (await res.json()) as any;
-    if (data.error) throw new Error(`${data.error.status}: ${String(data.error.message).slice(0, 200)}`);
-    const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    return JSON.parse(text) as T;
-  } catch (err) {
-    console.error("[gemini] call failed:", (err as Error).message);
-    return null;
+  // One retry: a transient Vertex 429/500 mid-demo must not silently swap the
+  // whole run onto the heuristic fallback.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(120_000) });
+      const data = (await res.json()) as any;
+      if (data.error) throw new Error(`${data.error.status}: ${String(data.error.message).slice(0, 200)}`);
+      const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      return JSON.parse(text) as T;
+    } catch (err) {
+      console.error(`[gemini] call failed (attempt ${attempt}/2):`, (err as Error).message);
+      if (attempt === 2) return null;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
+  return null;
 }

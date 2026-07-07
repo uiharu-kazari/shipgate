@@ -111,8 +111,16 @@ Live deployment (hackathon):
 - agent: https://shipgate-agent-maqob3nldq-an.a.run.app (dashboard at `/`)
 - demo app: https://shipgate-demo-maqob3nldq-an.a.run.app
 
-Then set repo variables `SHIPGATE_AGENT_URL` and `SHIPGATE_TARGET_URL` and the
+Then set repo variables `SHIPGATE_AGENT_URL` and `SHIPGATE_TARGET_URL`, secret
+`SHIPGATE_TOKEN` (must match the agent's `SHIPGATE_TOKEN` env), and the
 `.github/workflows/shipgate.yml` gate is live.
+
+Security posture (hackathon-honest): `/analyze` and `/propose-patch` are gated by
+`SHIPGATE_TOKEN` and `targetUrl` is restricted to `SHIPGATE_ALLOWED_TARGETS` hosts, so the
+public agent can't be used as a load-test reflector or a Vertex cost drain. **Scope note:**
+`targetUrl` should be the PR's *preview deployment*; this demo points it at a fixed staging
+URL because the demo repo has no per-PR preview step — a real integration would deploy the
+PR first (e.g. Cloud Run revision tags) and pass that URL.
 
 ## ShipGate Historian (Elastic Agent Builder)
 

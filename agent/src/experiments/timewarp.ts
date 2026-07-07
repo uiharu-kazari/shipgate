@@ -13,7 +13,10 @@ export async function runTimewarp(plan: NonNullable<ExperimentPlan["timewarp"]>,
     try {
       const samples: { offset: number; body: string; generatedAt?: string; cacheState?: string }[] = [];
       for (const offset of probe.offsetsSec) {
-        const res = await fetch(url, { headers: { "x-shipgate-clock-offset": String(offset) } });
+        const res = await fetch(url, {
+          headers: { "x-shipgate-clock-offset": String(offset) },
+          signal: AbortSignal.timeout(5000),
+        });
         const text = await res.text();
         let generatedAt: string | undefined;
         let cacheState: string | undefined;

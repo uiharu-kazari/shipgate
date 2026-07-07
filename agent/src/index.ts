@@ -32,11 +32,43 @@ app.get("/healthz", async (c) => {
   });
 });
 
+// Auth gate for the endpoints that run experiments / call Gemini. Locally (no
+// SHIPGATE_TOKEN set) they stay open; in the cloud the token is required so the
+// public service can't be used as a load-test reflector or Vertex cost drain.
+app.use("/analyze", async (c, next) => {
+  if (config.authToken && c.req.header("x-shipgate-token") !== config.authToken) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  await next();
+});
+app.use("/propose-patch", async (c, next) => {
+  if (config.authToken && c.req.header("x-shipgate-token") !== config.authToken) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  await next();
+});
+
 // Main entrypoint — called from CI (GitHub Action) or manually with a diff.
 app.post("/analyze", async (c) => {
-  const body = (await c.req.json()) as Partial<AnalyzeRequest>;
+  let body: Partial<AnalyzeRequest>;
+  try {
+    body = (await c.req.json()) as Partial<AnalyzeRequest>;
+  } catch {
+    return c.json({ error: "invalid JSON body" }, 400);
+  }
   if (!body.diff || !body.targetUrl || !body.repo) {
     return c.json({ error: "diff, targetUrl and repo are required" }, 400);
+  }
+  if (config.allowedTargetHosts.length) {
+    let host = "";
+    try {
+      host = new URL(body.targetUrl).host;
+    } catch {
+      return c.json({ error: "invalid targetUrl" }, 400);
+    }
+    if (!config.allowedTargetHosts.includes(host)) {
+      return c.json({ error: `targetUrl host not allowlisted: ${host}` }, 403);
+    }
   }
   const doc = await analyze(body as AnalyzeRequest);
   return c.json(doc);

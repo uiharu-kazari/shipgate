@@ -10,4 +10,11 @@ export const config = {
   esApiKey: process.env.ELASTICSEARCH_API_KEY ?? "",
   esIndex: process.env.ELASTICSEARCH_INDEX ?? "shipgate-evidence",
   githubToken: process.env.GITHUB_TOKEN ?? "",
+  // If set, /analyze and /propose-patch require this value in the x-shipgate-token header.
+  authToken: process.env.SHIPGATE_TOKEN ?? "",
+  // If set (comma-separated hostnames), targetUrl must resolve to one of these hosts.
+  allowedTargetHosts: (process.env.SHIPGATE_ALLOWED_TARGETS ?? "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean),
 };

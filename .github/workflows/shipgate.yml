@@ -26,8 +26,9 @@ jobs:
             --arg target "${{ vars.SHIPGATE_TARGET_URL }}" \
             --argjson pr ${{ github.event.pull_request.number }} \
             '{repo: $repo, prNumber: $pr, sha: "${{ github.sha }}", diff: $diff, targetUrl: $target}' \
-          | curl -sf -X POST "${{ vars.SHIPGATE_AGENT_URL }}/analyze" \
-              -H 'content-type: application/json' -d @- > /tmp/verdict.json
+          | curl -sf --max-time 300 -X POST "${{ vars.SHIPGATE_AGENT_URL }}/analyze" \
+              -H 'content-type: application/json' \
+              -H "x-shipgate-token: ${{ secrets.SHIPGATE_TOKEN }}" -d @- > /tmp/verdict.json
           echo "decision=$(jq -r .verdict.decision /tmp/verdict.json)" >> "$GITHUB_OUTPUT"
 
       - name: Comment verdict on PR

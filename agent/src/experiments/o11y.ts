@@ -18,7 +18,10 @@ export function runO11yLint(diff: string): ExperimentResult {
     const added = fileChunk
       .split("\n")
       .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
-      .map((l) => l.slice(1));
+      .map((l) => l.slice(1))
+      // Comments must not count as observability signals ("adds no metric" in a
+      // code comment would otherwise satisfy the metric regex).
+      .filter((l) => !/^\s*(\/\/|\/\*|\*|#)/.test(l));
     const addedText = added.join("\n");
     const hasSignal = /(logger\.|console\.(error|warn)|metrics?\.|counter|histogram|span|trace|otel|prometheus)/i.test(addedText);
 
