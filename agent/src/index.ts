@@ -77,10 +77,15 @@ app.post("/analyze", async (c) => {
 // Agent proposes a fix for failed experiments: send it the source files and the
 // experiment results, get back rewritten files + rationale.
 app.post("/propose-patch", async (c) => {
-  const body = (await c.req.json()) as {
+  let body: {
     sourceFiles?: { path: string; content: string }[];
     results?: import("./types.js").ExperimentResult[];
   };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid JSON body" }, 400);
+  }
   if (!body.results) return c.json({ error: "results are required" }, 400);
   const { proposePatch } = await import("./patch.js");
   const proposal = await proposePatch(body.sourceFiles ?? [], body.results);

@@ -3,8 +3,19 @@ import type { ExperimentPlan, ExperimentResult } from "../types.js";
 
 export async function runLoad(plan: NonNullable<ExperimentPlan["load"]>, targetUrl: string): Promise<ExperimentResult[]> {
   const results: ExperimentResult[] = [];
+  const targetHost = new URL(targetUrl).host;
   for (const route of plan.routes) {
-    const url = new URL(route.path, targetUrl).toString();
+    // Guard: a model-planned absolute path (e.g. "https://evil/x") would otherwise
+    // resolve to another host. Only probe paths that stay on the target host.
+    let url: string;
+    try {
+      const resolved = new URL(route.path, targetUrl);
+      if (resolved.host !== targetHost) throw new Error(`path escapes target host: ${route.path}`);
+      url = resolved.toString();
+    } catch (err) {
+      results.push({ kind: "load", status: "error", title: `Load ${route.method} ${route.path}`, detail: `skipped: ${(err as Error).message}` });
+      continue;
+    }
     try {
       const r = await autocannon({
         url,

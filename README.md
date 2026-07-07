@@ -101,7 +101,7 @@ gcloud run deploy shipgate-demo  --image gcr.io/$PROJECT/shipgate-demo:v1  --reg
   --allow-unauthenticated --set-env-vars SHIPGATE_TESTING=1
 gcloud run deploy shipgate-agent --image gcr.io/$PROJECT/shipgate-agent:v1 --region asia-northeast1 \
   --allow-unauthenticated --memory 1Gi --timeout 600 \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,ELASTICSEARCH_URL=…,ELASTICSEARCH_API_KEY=…"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,ELASTICSEARCH_URL=…,ELASTICSEARCH_API_KEY=…,SHIPGATE_TOKEN=$(openssl rand -hex 24),SHIPGATE_ALLOWED_TARGETS=your-demo-app.run.app"
 ```
 
 No Gemini key needed on Cloud Run — the agent gets its OAuth token from the metadata server.
