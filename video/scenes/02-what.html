@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720, initial-scale=1">
+  <title>ShipGate What It Is</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --ship: #3fb950;
+      --warn: #d29922;
+      --block: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(140deg, rgba(63, 185, 80, 0.07), transparent 38%),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      position: relative;
+    }
+
+    .stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 84px 72px;
+      gap: 58px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 64px;
+      line-height: 1.05;
+      letter-spacing: 0;
+      font-weight: 760;
+      text-align: center;
+      animation: heading 0.6s ease-out both;
+    }
+
+    .cards {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+
+    .card {
+      min-height: 230px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      padding: 34px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+      opacity: 0;
+      transform: translateY(18px);
+      animation: cardIn 0.6s ease-out both;
+    }
+
+    .card:nth-child(1) {
+      animation-delay: 0.12s;
+    }
+
+    .card:nth-child(2) {
+      animation-delay: 0.26s;
+    }
+
+    .card:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    .icon {
+      width: 62px;
+      height: 62px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 26px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0d1117;
+      font-size: 34px;
+    }
+
+    .label {
+      margin: 0 0 12px;
+      font-size: 32px;
+      line-height: 1.15;
+      font-weight: 720;
+    }
+
+    .description {
+      margin: 0;
+      color: var(--dim);
+      font-size: 23px;
+      line-height: 1.35;
+      font-weight: 430;
+    }
+
+    @keyframes heading {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes cardIn {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="What ShipGate is">
+    <h1>Diff-aware release-gate agent</h1>
+    <section class="cards" aria-label="ShipGate capabilities">
+      <article class="card">
+        <div class="icon" aria-hidden="true">⚡</div>
+        <h2 class="label">Load</h2>
+        <p class="description">targeted latency budget</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">⏱️</div>
+        <h2 class="label">Time-warp</h2>
+        <p class="description">test a 60-min TTL in 3 seconds</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true">🔍</div>
+        <h2 class="label">Observability</h2>
+        <p class="description">can on-call debug this?</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

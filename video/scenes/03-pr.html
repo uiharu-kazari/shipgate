@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PR #1 — ShipGate verdict</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
+        --ship:#3fb950;--warn:#d29922;--block:#f85149;--link:#4493f8;}
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1280px;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  body{padding:26px 90px 60px}
+  .repo{color:var(--dim);font-size:15px;margin-bottom:2px}
+  .repo b{color:var(--text)}
+  h1{font-size:26px;font-weight:600;margin-bottom:4px}
+  h1 .num{color:var(--dim);font-weight:400}
+  .state{display:inline-flex;align-items:center;gap:6px;background:#8250df;color:#fff;
+    font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;margin:8px 0 22px}
+  .comment{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .chead{display:flex;align-items:center;gap:10px;background:#12233b;border-bottom:1px solid var(--border);
+    padding:10px 16px;font-size:14px}
+  .avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#3fb950,#238636);
+    display:flex;align-items:center;justify-content:center;font-size:14px}
+  .chead b{color:var(--text)} .chead .muted{color:var(--dim)}
+  .cbody{padding:20px 22px}
+  h2.v{font-size:22px;margin:2px 0 14px}
+  .cbody p{color:var(--text);line-height:1.6;margin:12px 0}
+  .sec{font-size:16px;font-weight:600;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  ul{list-style:none} li{margin:9px 0;line-height:1.55;font-size:15px}
+  .tag{font-weight:700;font-size:12px;padding:1px 7px;border-radius:6px;margin-right:8px}
+  .fail{background:rgba(248,81,73,.16);color:var(--block)}
+  .pass{background:rgba(63,185,80,.16);color:var(--ship)}
+  code{background:#232a33;padding:1px 6px;border-radius:5px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .dim{color:var(--dim)}
+</style>
+<div class="repo"><b>uiharu-kazari/shipgate-demo-shop</b></div>
+<h1>Add search cache + relevance scoring v2 + supplier price sync <span class="num">#1</span></h1>
+<span class="state">⛔ Blocked by ShipGate</span>
+
+<div class="comment">
+  <div class="chead">
+    <div class="avatar">🚦</div>
+    <b>shipgate</b><span class="muted">bot commented via GitHub Actions · now</span>
+  </div>
+  <div class="cbody">
+    <h2 class="v">🔴 ShipGate verdict: <span style="color:var(--block)">block</span></h2>
+    <p>This change introduces a caching mechanism for product search results with a 60-second TTL and a new endpoint for synchronizing prices from an external supplier. The search logic has also been updated with a heavier scoring algorithm.</p>
+
+    <div class="sec">Experiments</div>
+    <ul>
+      <li><span class="tag fail">FAIL</span>Observability readiness — 3 unobservable code paths added; on-call cannot debug these if they fail in production</li>
+      <li><span class="tag pass">PASS</span>Load GET <code>/api/search</code> — p99 56ms vs budget 300ms; 14,467 reqs, 0.0% errors</li>
+      <li><span class="tag pass">PASS</span>Time-warp — cache miss on first request</li>
+      <li><span class="tag pass">PASS</span>Time-warp — cache hit within TTL (0s, 30s)</li>
+      <li><span class="tag fail">FAIL</span>Time-warp just after TTL — stale data still served 61s after generation (offsets serving stale: 61s)</li>
+      <li><span class="tag fail">FAIL</span>Time-warp long after TTL — stale data still served 3601s after generation (offsets serving stale: 3601s)</li>
+    </ul>
+
+    <div class="sec">Reasons</div>
+    <ul>
+      <li>• Time-warp confirmed a critical cache-expiry bug: entries returned as hits 61s and 3601s after generation, despite a 60s TTL — indefinitely stale data.</li>
+      <li>• Observability readiness failed on 3 paths, including a new external call to <code>supplier.invalid/prices</code> with no logging or metrics — a blind spot for on-call.</li>
+      <li>• <code>searchCache</code> is an unbounded <code>Map</code>; with the expiry bug, entries never evict — high memory-leak risk in production.</li>
+    </ul>
+
+    <div class="sec">Advice</div>
+    <ul>
+      <li>• Fix the cache expiry check so entries invalidate after their TTL.</li>
+      <li>• Bound <code>searchCache</code> (LRU / max size) to prevent the memory leak.</li>
+      <li>• Add structured logging + failure metrics to the <code>/api/sync-prices</code> external call.</li>
+      <li>• Expose cache hit / miss / stale metrics for production monitoring.</li>
+    </ul>
+    <p class="dim">Gate failed the check — this PR cannot merge until the verdict clears.</p>
+  </div>
+</div>

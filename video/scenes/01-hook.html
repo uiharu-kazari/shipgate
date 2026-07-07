@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720, initial-scale=1">
+  <title>ShipGate Hook</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --ship: #3fb950;
+      --warn: #d29922;
+      --block: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 58%, rgba(63, 185, 80, 0.08), transparent 34%),
+        linear-gradient(180deg, #10161f 0%, var(--bg) 58%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      position: relative;
+    }
+
+    .stage {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 72px;
+    }
+
+    .hero {
+      text-align: center;
+      transform: translateY(-12px);
+      animation: rise 0.6s ease-out both;
+    }
+
+    .wordmark {
+      margin: 0;
+      font-size: 112px;
+      line-height: 1;
+      letter-spacing: 0;
+      font-weight: 760;
+    }
+
+    .wordmark .gate {
+      color: var(--ship);
+    }
+
+    .subtitle {
+      width: 930px;
+      margin: 30px auto 0;
+      color: var(--dim);
+      font-size: 31px;
+      line-height: 1.35;
+      font-weight: 430;
+      animation: fade 0.6s ease-out 0.16s both;
+    }
+
+    .corner {
+      position: absolute;
+      right: 54px;
+      bottom: 46px;
+      min-width: 218px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(22, 27, 34, 0.74);
+      color: var(--dim);
+      animation: fade 0.6s ease-out 0.32s both;
+    }
+
+    .clock {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .clock .time {
+      color: var(--text);
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .clock .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 20px rgba(210, 153, 34, 0.34);
+    }
+
+    .pager {
+      font-size: 18px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    .pager span {
+      color: var(--block);
+      font-weight: 650;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(-12px);
+      }
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="ShipGate title slide">
+    <section class="hero">
+      <h1 class="wordmark">🚦 Ship<span class="gate">Gate</span></h1>
+      <p class="subtitle">CI tells you your code is correct. Nobody tells you it's operable.</p>
+    </section>
+    <aside class="corner" aria-label="late-night on-call hint">
+      <div class="clock">
+        <div class="dot" aria-hidden="true"></div>
+        <div class="time">3:00 AM</div>
+      </div>
+      <div class="pager"><span>on-call</span> pager pending</div>
+    </aside>
+  </main>
+</body>
+</html>

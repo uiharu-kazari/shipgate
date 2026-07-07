@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720, initial-scale=1">
+  <title>ShipGate Close</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --ship: #3fb950;
+      --warn: #d29922;
+      --block: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(63, 185, 80, 0.07), transparent 42%),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      position: relative;
+    }
+
+    .stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 80px 64px 76px;
+    }
+
+    .flow {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      animation: fadeSlide 0.6s ease-out both;
+    }
+
+    .node {
+      min-width: 160px;
+      max-width: 204px;
+      min-height: 82px;
+      padding: 17px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--text);
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 680;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2);
+    }
+
+    .node.verdict {
+      border-color: rgba(63, 185, 80, 0.58);
+      color: var(--ship);
+    }
+
+    .arrow {
+      width: 34px;
+      display: grid;
+      place-items: center;
+      color: var(--dim);
+      font-size: 33px;
+      line-height: 1;
+      flex: 0 0 34px;
+    }
+
+    .pills {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      width: 100%;
+      animation: fadeSlide 0.6s ease-out 0.18s both;
+    }
+
+    .pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(22, 27, 34, 0.76);
+      color: var(--dim);
+      padding: 14px 20px;
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 560;
+      white-space: nowrap;
+    }
+
+    .closing {
+      margin: 0;
+      width: 960px;
+      text-align: center;
+      font-size: 69px;
+      line-height: 1.08;
+      letter-spacing: 0;
+      font-weight: 780;
+      animation: closingIn 0.6s ease-out 0.34s both;
+    }
+
+    .closing .ship {
+      color: var(--ship);
+    }
+
+    @keyframes fadeSlide {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes closingIn {
+      from {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="ShipGate architecture and closing line">
+    <section class="flow" aria-label="ShipGate architecture flow">
+      <div class="node">GitHub PR</div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">Agent<br>(Cloud Run)</div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">Gemini<br>plans+judges</div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">Elasticsearch</div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node verdict">verdict</div>
+    </section>
+    <section class="pills" aria-label="Technology stack">
+      <div class="pill">Cloud Run</div>
+      <div class="pill">Vertex AI · Gemini</div>
+      <div class="pill">Elastic Agent Builder</div>
+      <div class="pill">GitHub Actions</div>
+    </section>
+    <p class="closing">Prove it with experiments. <span class="ship">Then ship.</span></p>
+  </main>
+</body>
+</html>
