@@ -1,0 +1,24 @@
+name: ShipGate preview cleanup
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# Tear down the per-PR Cloud Run preview once the PR is closed/merged.
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Delete preview service
+        run: |
+          SERVICE="shipgate-demo-pr-${{ github.event.pull_request.number }}"
+          gcloud run services delete "$SERVICE" \
+            --project "${{ vars.GCP_PROJECT }}" --region "${{ vars.GCP_REGION }}" \
+            --quiet || echo "no preview service to delete"

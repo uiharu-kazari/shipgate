@@ -66,7 +66,13 @@ app.post("/analyze", async (c) => {
     } catch {
       return c.json({ error: "invalid targetUrl" }, 400);
     }
-    if (!config.allowedTargetHosts.includes(host)) {
+    // Entries may be an exact host or a "*.suffix" / "*-suffix" glob, so per-PR
+    // preview services (shipgate-demo-pr-<n>-<proj>.<region>.run.app) can be allowed
+    // without listing every ephemeral host, while still scoping to our project.
+    const allowed = config.allowedTargetHosts.some((entry) =>
+      entry.startsWith("*") ? host.endsWith(entry.slice(1)) : host === entry
+    );
+    if (!allowed) {
       return c.json({ error: `targetUrl host not allowlisted: ${host}` }, 403);
     }
   }

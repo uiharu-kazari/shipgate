@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+# Per-PR preview: this workflow deploys the PR's ACTUAL code to a temporary
+# Cloud Run service, then has ShipGate run its experiments against that build —
+# so the verdict reflects the real diff, not a fixed staging app.
 jobs:
   shipgate:
     runs-on: ubuntu-latest
@@ -15,6 +18,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy PR preview to Cloud Run
+        id: preview
+        run: |
+          SERVICE="shipgate-demo-pr-${{ github.event.pull_request.number }}"
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --project "${{ vars.GCP_PROJECT }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --allow-unauthenticated \
+            --quiet
+          URL=$(gcloud run services describe "$SERVICE" \
+            --project "${{ vars.GCP_PROJECT }}" --region "${{ vars.GCP_REGION }}" \
+            --format 'value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Preview: $URL"
+
       - name: Collect PR diff
         run: git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
 
@@ -23,7 +50,7 @@ jobs:
         run: |
           jq -n --rawfile diff /tmp/pr.diff \
             --arg repo "${{ github.repository }}" \
-            --arg target "${{ vars.SHIPGATE_TARGET_URL }}" \
+            --arg target "${{ steps.preview.outputs.url }}" \
             --argjson pr ${{ github.event.pull_request.number }} \
             '{repo: $repo, prNumber: $pr, sha: "${{ github.sha }}", diff: $diff, targetUrl: $target}' \
           | curl -sf --max-time 300 -X POST "${{ vars.SHIPGATE_AGENT_URL }}/analyze" \
@@ -37,8 +64,10 @@ jobs:
           script: |
             const v = require('/tmp/verdict.json');
             const icon = { ship: '🟢', 'ship-with-warnings': '🟡', block: '🔴' }[v.verdict.decision];
+            const preview = "${{ steps.preview.outputs.url }}";
             const body = [
               `## ${icon} ShipGate verdict: **${v.verdict.decision}**`,
+              `_tested against this PR's preview deployment: ${preview}_`,
               '', v.plan.summary, '',
               '### Experiments',
               ...v.results.map(r => `- **[${r.status}]** ${r.title} — ${r.detail}`),
