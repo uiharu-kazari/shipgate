@@ -8,25 +8,59 @@
   :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
           --ship:#3fb950; --warn:#d29922; --block:#f85149; }
   * { box-sizing:border-box; margin:0 }
-  body { background:var(--bg); color:var(--text); font:15px/1.55 -apple-system,"Segoe UI",sans-serif; padding:2rem; max-width:1000px; margin:0 auto }
+  body { background:var(--bg); color:var(--text); font:15px/1.55 -apple-system,"Segoe UI",sans-serif; padding:2rem 1.25rem; max-width:1000px; margin:0 auto }
   h1 { font-size:1.5rem; margin-bottom:.25rem } h1 span{color:var(--ship)}
-  .sub { color:var(--dim); margin-bottom:2rem }
+  .sub { color:var(--dim); margin-bottom:1.25rem }
+
+  /* header: live indicator + summary tiles + legend */
+  .topbar { display:flex; flex-wrap:wrap; align-items:center; gap:.9rem; margin-bottom:1.5rem }
+  .live { display:inline-flex; align-items:center; gap:.45rem; color:var(--dim); font-size:.8rem;
+          border:1px solid var(--border); background:var(--card); border-radius:999px; padding:.3rem .7rem }
+  .dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--ship); box-shadow:0 0 0 0 rgba(63,185,80,.6);
+         animation:pulse 1.8s ease-out infinite }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(63,185,80,.55)} 70%{box-shadow:0 0 0 7px rgba(63,185,80,0)} 100%{box-shadow:0 0 0 0 rgba(63,185,80,0)} }
+  @media (prefers-reduced-motion: reduce) { .dot { animation:none } }
+
+  .tiles { display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:1.75rem }
+  .tile { flex:1 1 130px; min-width:120px; background:var(--card); border:1px solid var(--border);
+          border-radius:10px; padding:.7rem .9rem }
+  .tile .n { font-size:1.6rem; font-weight:700; line-height:1.1 }
+  .tile .k { font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); margin-top:.1rem }
+  .tile.block { border-color:rgba(248,81,73,.4) } .tile.block .n{color:var(--block)}
+  .tile.warn { border-color:rgba(210,153,34,.4) } .tile.warn .n{color:var(--warn)}
+  .tile.ship { border-color:rgba(63,185,80,.4) } .tile.ship .n{color:var(--ship)}
+
+  .legend { display:flex; flex-wrap:wrap; gap:.9rem; font-size:.78rem; color:var(--dim) }
+  .legend span { display:inline-flex; align-items:center; gap:.35rem }
+  .swatch { width:.65rem; height:.65rem; border-radius:3px; display:inline-block }
+  .swatch.pass{background:var(--ship)} .swatch.warn{background:var(--warn)} .swatch.fail{background:var(--block)}
+
   .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.25rem 1.5rem; margin-bottom:1.25rem }
+  .card-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:.6rem; margin-bottom:.35rem }
   .verdict { display:inline-block; padding:.2rem .7rem; border-radius:999px; font-weight:700; font-size:.85rem; text-transform:uppercase }
   .ship { background:rgba(63,185,80,.15); color:var(--ship) }
   .ship-with-warnings { background:rgba(210,153,34,.15); color:var(--warn) }
   .block { background:rgba(248,81,73,.15); color:var(--block) }
-  .meta { color:var(--dim); font-size:.85rem; margin-left:.75rem }
+  .repo { font-weight:600; font-size:.95rem }
+  .meta { color:var(--dim); font-size:.82rem; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center }
+  .meta .sep { opacity:.5 }
   .summary { margin:.75rem 0; color:var(--text) }
   ul { padding-left:1.25rem; margin:.5rem 0 }
   li { margin:.2rem 0 }
-  .result { border-left:3px solid var(--border); padding:.4rem .9rem; margin:.6rem 0; font-size:.92rem }
+  .result { border-left:3px solid var(--border); padding:.45rem .9rem; margin:.6rem 0; font-size:.92rem }
   .result.pass { border-color:var(--ship) } .result.warn{border-color:var(--warn)}
   .result.fail, .result.error { border-color:var(--block) }
-  .status { font-weight:700; text-transform:uppercase; font-size:.75rem; margin-right:.5rem }
-  .pass .status{color:var(--ship)} .warn .status{color:var(--warn)} .fail .status,.error .status{color:var(--block)}
+  .result-top { display:flex; flex-wrap:wrap; align-items:baseline; gap:.5rem }
+  .status { font-weight:700; text-transform:uppercase; font-size:.7rem; letter-spacing:.04em; padding:.1rem .45rem;
+            border-radius:5px; background:rgba(139,148,158,.12); color:var(--dim); flex:none }
+  .result-title { font-weight:600 }
+  .metric { margin-left:auto; font-size:.78rem; color:var(--dim); font-variant-numeric:tabular-nums }
+  .pass .status{color:var(--ship); background:rgba(63,185,80,.14)}
+  .warn .status{color:var(--warn); background:rgba(210,153,34,.14)}
+  .fail .status,.error .status{color:var(--block); background:rgba(248,81,73,.14)}
   .skipped .status{color:var(--dim)}
-  .detail { color:var(--dim) }
+  .detail { color:var(--dim); margin-top:.2rem }
+  .detail code { background:rgba(139,148,158,.12); padding:.05rem .3rem; border-radius:4px }
   .section-label { font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin-top:1rem }
   .empty { color:var(--dim); text-align:center; padding:3rem }
 </style>
@@ -34,35 +68,75 @@
 <body>
   <h1>🚦 Ship<span>Gate</span></h1>
   <p class="sub">Diff-aware release experiments — evidence from Elasticsearch, verdicts by Gemini</p>
+
+  <div class="topbar">
+    <span class="live"><span class="dot"></span>auto-refreshing · every 10s</span>
+    <div class="legend">
+      <span><span class="swatch fail"></span>fail / block</span>
+      <span><span class="swatch warn"></span>warn</span>
+      <span><span class="swatch pass"></span>pass / ship</span>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
   <div id="feed"><p class="empty">Loading evidence…</p></div>
 <script>
+function pickMetric(m) {
+  if (!m || typeof m !== 'object') return '';
+  const keys = Object.keys(m);
+  if (!keys.length) return '';
+  const k = keys[0];
+  return k + ': ' + m[k];
+}
 async function load() {
   const res = await fetch('/api/evidence');
   const { docs } = await res.json();
   const feed = document.getElementById('feed');
+  const tiles = document.getElementById('tiles');
+
+  const counts = { total: docs.length, block:0, 'ship-with-warnings':0, ship:0 };
+  docs.forEach(d => { const dec = d.verdict.decision; if (dec in counts) counts[dec]++; });
+  tiles.innerHTML = `
+    <div class="tile"><div class="n">${counts.total}</div><div class="k">Total runs</div></div>
+    <div class="tile block"><div class="n">${counts.block}</div><div class="k">Block</div></div>
+    <div class="tile warn"><div class="n">${counts['ship-with-warnings']}</div><div class="k">Ship w/ warnings</div></div>
+    <div class="tile ship"><div class="n">${counts.ship}</div><div class="k">Ship</div></div>`;
+
   if (!docs.length) { feed.innerHTML = '<p class="empty">No runs yet. POST a diff to /analyze.</p>'; return; }
   feed.innerHTML = docs.map(d => `
     <div class="card">
-      <div>
-        <span class="verdict ${d.verdict.decision}">${d.verdict.decision}</span>
-        <span class="meta">${d.repo}${d.prNumber ? ' #' + d.prNumber : ''} · ${new Date(d['@timestamp']).toLocaleString()} · ${d.agent.mocked ? 'heuristic fallback' : d.agent.model} · ${(d.agent.totalMs/1000).toFixed(1)}s</span>
+      <div class="card-head">
+        <span class="verdict ${d.verdict.decision}">${esc(d.verdict.decision)}</span>
+        <span class="repo">${esc(d.repo)}${d.prNumber ? ' #' + esc(d.prNumber) : ''}</span>
       </div>
-      <p class="summary">${esc(d.plan.summary)}</p>
+      <div class="meta">
+        <span>${esc(new Date(d['@timestamp']).toLocaleString())}</span><span class="sep">·</span>
+        <span>${esc(d.agent.mocked ? 'heuristic fallback' : d.agent.model)}</span><span class="sep">·</span>
+        <span>${esc((d.agent.totalMs/1000).toFixed(1))}s</span>
+      </div>
+      <p class="summary">${fmt(d.plan.summary)}</p>
       <div class="section-label">Predicted risks</div>
-      <ul>${d.plan.risks.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+      <ul>${d.plan.risks.map(r => `<li>${fmt(r)}</li>`).join('')}</ul>
       <div class="section-label">Experiments</div>
       ${d.results.map(r => `
         <div class="result ${r.status}">
-          <span class="status">${r.status}</span><strong>${esc(r.title)}</strong>
+          <div class="result-top">
+            <span class="status">${esc(r.status)}</span>
+            <span class="result-title">${esc(r.title)}</span>
+            ${pickMetric(r.metrics) ? `<span class="metric">${esc(pickMetric(r.metrics))}</span>` : ''}
+          </div>
           <div class="detail">${esc(r.detail)}</div>
           ${(r.findings||[]).map(f => `<div class="detail">→ <code>${esc(f.file)}</code>: ${esc(f.issue)} — ${esc(f.suggestion)}</div>`).join('')}
         </div>`).join('')}
       <div class="section-label">Verdict reasons</div>
-      <ul>${d.verdict.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
-      ${d.verdict.advice?.length ? `<div class="section-label">Advice</div><ul>${d.verdict.advice.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+      <ul>${d.verdict.reasons.map(r => `<li>${fmt(r)}</li>`).join('')}</ul>
+      ${d.verdict.advice?.length ? `<div class="section-label">Advice</div><ul>${d.verdict.advice.map(a => `<li>${fmt(a)}</li>`).join('')}</ul>` : ''}
     </div>`).join('');
 }
 function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
+// esc first (XSS-safe), then render markdown **bold** the model emits into <strong>.
+function fmt(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }
 load(); setInterval(load, 10000);
 </script>
 </body>

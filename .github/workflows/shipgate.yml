@@ -30,11 +30,15 @@ jobs:
         id: preview
         run: |
           SERVICE="shipgate-demo-pr-${{ github.event.pull_request.number }}"
+          # --source . builds the app-under-test's root Dockerfile. SHIPGATE_TESTING=1
+          # is set explicitly (not just via the Dockerfile ENV) so the virtual-clock
+          # header the time-warp probe relies on is always honored on the preview.
           gcloud run deploy "$SERVICE" \
             --source . \
             --project "${{ vars.GCP_PROJECT }}" \
             --region "${{ vars.GCP_REGION }}" \
             --allow-unauthenticated \
+            --set-env-vars SHIPGATE_TESTING=1 \
             --quiet
           URL=$(gcloud run services describe "$SERVICE" \
             --project "${{ vars.GCP_PROJECT }}" --region "${{ vars.GCP_REGION }}" \
