@@ -116,12 +116,16 @@ Then set repo variables `SHIPGATE_AGENT_URL` and `SHIPGATE_TARGET_URL`, secret
 `SHIPGATE_TOKEN` (must match the agent's `SHIPGATE_TOKEN` env), and the
 `.github/workflows/shipgate.yml` gate is live.
 
-Security posture (hackathon-honest): `/analyze` and `/propose-patch` are gated by
-`SHIPGATE_TOKEN` and `targetUrl` is restricted to `SHIPGATE_ALLOWED_TARGETS` hosts, so the
-public agent can't be used as a load-test reflector or a Vertex cost drain. **Scope note:**
-`targetUrl` should be the PR's *preview deployment*; this demo points it at a fixed staging
-URL because the demo repo has no per-PR preview step — a real integration would deploy the
-PR first (e.g. Cloud Run revision tags) and pass that URL.
+Security posture: `/analyze` and `/propose-patch` are gated by `SHIPGATE_TOKEN`, and
+`targetUrl` is restricted to `SHIPGATE_ALLOWED_TARGETS` hosts (exact host or `*.suffix`
+glob), so the public agent can't be used as a load-test reflector or a Vertex cost drain.
+
+**Per-PR preview (real, not a fixed target):** `.github/workflows/shipgate.yml` deploys the
+PR's actual code to a temporary Cloud Run service `shipgate-demo-pr-<n>` via
+`gcloud run deploy --source`, passes that URL as `targetUrl`, and `shipgate-cleanup.yml`
+deletes it on PR close. The verdict therefore reflects the real diff's build, not a canned
+staging app. CI authenticates with a least-privilege `GCP_SA_KEY` secret; the allowlist glob
+`*-<project>.<region>.run.app` scopes probes to this project's Cloud Run services.
 
 ## ShipGate Historian (Elastic Agent Builder)
 

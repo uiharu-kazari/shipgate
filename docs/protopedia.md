@@ -69,7 +69,7 @@ GitHub PR ──diff──▶ GitHub Actions
             PR コメント + ゲート    ダッシュボード + Historian
                               （Elastic Agent Builder / ES|QL）
                         ▲
-        対象アプリ（Cloud Run / 仮想時計ヘッダ対応）
+        PRごとのプレビュー環境（Cloud Run / 仮想時計ヘッダ対応 / 自動作成・削除）
 ```
 
 ## 使用技術（必須要件との対応）
@@ -92,8 +92,8 @@ GitHub PR ──diff──▶ GitHub Actions
 - **AIエージェントが価値の中心**: 差分ごとに実験を自律設計・実行・判定・修復。固定パイプラインでは不可能
 - **課題へのアプローチ**: 「AI SRE は事後対応ばかり」という市場の空白を、事前の実験ゲートで埋める
 - **ユーザビリティ**: PR コメント1枚に証拠と判定が集約。質問は Historian に日本語で
-- **実用性**: 実在の GitHub PR を実測値でブロック済み。ヒューリスティックへの優雅な劣化つき
-- **実装力**: 必須技術3点セット（Cloud Run / Vertex Gemini / GitHub Actions）+ スポンサー技術（Elastic Agent Builder）を本番稼働
+- **実用性**: 実在の GitHub PR を実測値でブロック済み。**PR ごとに実コードを一時 Cloud Run へデプロイして検証**（固定アプリではなく差分の実ビルドを実験対象にする）。ヒューリスティックへの優雅な劣化つき
+- **実装力**: 必須技術3点セット（Cloud Run / Vertex Gemini / GitHub Actions）+ スポンサー技術（Elastic Agent Builder）を本番稼働。CI は最小権限 SA でプレビュー環境を自動作成・自動削除
 
 ## デモ動画 絵コンテ（60〜90秒）
 
