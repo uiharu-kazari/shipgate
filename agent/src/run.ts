@@ -15,18 +15,35 @@ export async function analyze(req: AnalyzeRequest): Promise<EvidenceDoc> {
   const planMs = Date.now() - t0;
   const mocked = lastCallMocked;
 
-  // 2. Agent executes its own plan
+  // 2. Agent executes its own plan.
+  // A plan that schedules NOTHING means the diff is operationally inert (docs/config)
+  // — that legitimately ships. But a plan that DID schedule experiments and yet
+  // produced no results is missing evidence, and must NOT be laundered into an
+  // "inert" skip (which would ship). Track the two cases apart.
+  const scheduled = Boolean(plan.observability || plan.load?.routes?.length || plan.timewarp?.probes?.length);
   const results: ExperimentResult[] = [];
   if (plan.observability) results.push(runO11yLint(req.diff));
-  if (plan.load) results.push(...(await runLoad(plan.load, req.targetUrl)));
-  if (plan.timewarp) results.push(...(await runTimewarp(plan.timewarp, req.targetUrl)));
+  if (plan.load?.routes?.length) results.push(...(await runLoad(plan.load, req.targetUrl)));
+  if (plan.timewarp?.probes?.length) results.push(...(await runTimewarp(plan.timewarp, req.targetUrl)));
+
   if (!results.length) {
-    results.push({
-      kind: "observability",
-      status: "skipped",
-      title: "No experiments warranted",
-      detail: "The agent judged this diff operationally inert (docs/tests/config only).",
-    });
+    results.push(
+      scheduled
+        ? {
+            // Experiments were planned but none produced a result → no evidence.
+            // decideVerdict turns this into "inconclusive", which fails the gate.
+            kind: "observability",
+            status: "error",
+            title: "Experiments produced no evidence",
+            detail: "The agent scheduled experiments for this diff but none executed, so there is no evidence to judge.",
+          }
+        : {
+            kind: "observability",
+            status: "skipped",
+            title: "No experiments warranted",
+            detail: "The agent judged this diff operationally inert (docs/tests/config only).",
+          }
+    );
   }
 
   // 3. Agent issues the release verdict

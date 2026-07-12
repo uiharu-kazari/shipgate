@@ -11,25 +11,29 @@ import type { AnalyzeRequest } from "./types.js";
 const app = new Hono();
 
 /**
- * Fail CLOSED on misconfiguration. Locally (no K_SERVICE) the agent stays open for
- * convenience, but on Cloud Run a missing SHIPGATE_TOKEN or SHIPGATE_ALLOWED_TARGETS
- * would silently turn the public agent into an unauthenticated load-test reflector and
- * an unbounded Vertex cost sink. Refuse to start instead of degrading quietly.
+ * Fail CLOSED on misconfiguration, EVERYWHERE — not just on Cloud Run. Without a token
+ * and a target allowlist, a reachable agent is an unauthenticated load-test reflector
+ * and an unbounded Vertex cost sink. K_SERVICE only identifies Cloud Run; Docker -p,
+ * Kubernetes, a VM or a tunnel are just as exposed. So security is required by default
+ * and must be waived EXPLICITLY for local dev via SHIPGATE_DEV_OPEN=1.
  */
-function assertProductionConfig(): void {
-  const onCloudRun = !!process.env.K_SERVICE;
-  if (!onCloudRun) return;
+function assertSecureConfig(): void {
+  if (process.env.SHIPGATE_DEV_OPEN === "1") {
+    console.warn("[shipgate] SHIPGATE_DEV_OPEN=1 — auth and target allowlist DISABLED. Never use this for a reachable deployment.");
+    return;
+  }
   const missing: string[] = [];
   if (!config.authToken) missing.push("SHIPGATE_TOKEN");
   if (!config.allowedTargetHosts.length) missing.push("SHIPGATE_ALLOWED_TARGETS");
   if (missing.length) {
     throw new Error(
-      `Refusing to start: missing required production config: ${missing.join(", ")}. ` +
-        `Without these, /analyze is unauthenticated and targetUrl is unrestricted.`
+      `Refusing to start: missing required config: ${missing.join(", ")}. ` +
+        `Without these, /analyze is unauthenticated and targetUrl is unrestricted. ` +
+        `Set them, or set SHIPGATE_DEV_OPEN=1 to explicitly run insecurely for local dev.`
     );
   }
 }
-assertProductionConfig();
+assertSecureConfig();
 
 // Note: /healthz is intercepted by Google's frontend on *.run.app — /api/health is the
 // alias that works everywhere.

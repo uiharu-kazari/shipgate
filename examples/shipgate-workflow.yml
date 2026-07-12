@@ -102,10 +102,16 @@ jobs:
               });
             }
 
-      # Fail CLOSED. "inconclusive" means the experiments could not produce evidence
-      # (probe errored / target unreachable) — that must never merge as if it passed.
+      # Fail CLOSED, by ALLOWLIST. Only two decisions may pass; anything else — block,
+      # inconclusive (no evidence), an unknown value, or an empty/failed response —
+      # fails the check. A denylist would let a null/unexpected verdict merge.
       - name: Gate
-        if: steps.verdict.outputs.decision == 'block' || steps.verdict.outputs.decision == 'inconclusive'
         run: |
-          echo "ShipGate did not clear this release: ${{ steps.verdict.outputs.decision }}"
-          exit 1
+          DECISION="${{ steps.verdict.outputs.decision }}"
+          case "$DECISION" in
+            ship|ship-with-warnings)
+              echo "ShipGate cleared this release: $DECISION" ;;
+            *)
+              echo "ShipGate did not clear this release: '${DECISION:-<none>}'"
+              exit 1 ;;
+          esac

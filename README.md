@@ -4,7 +4,13 @@
 ShipGate is an AI release gate for TypeScript web apps: given a PR diff, a Gemini-powered
 agent *decides for itself* which operational experiments the change deserves, generates and
 runs them, stores the evidence in Elasticsearch, and issues a release verdict
-(`ship` / `ship-with-warnings` / `block`) on the PR.
+(`ship` / `ship-with-warnings` / `block` / `inconclusive`) on the PR.
+
+The gate **fails closed**: only `ship` and `ship-with-warnings` pass the check. `block` means
+an experiment measured a real failure; `inconclusive` means the experiments could not produce
+evidence at all (probe errored, target unreachable) — and "no evidence" must never merge as
+if it were a pass. The decision is computed in code from measured results; the model only
+writes the explanation.
 
 Built for the [DevOps × AI Agent Hackathon 2026](https://findy.notion.site/devops-ai-agent-hackathon-2026).
 

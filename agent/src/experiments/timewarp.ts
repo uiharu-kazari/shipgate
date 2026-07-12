@@ -20,8 +20,13 @@ export async function runTimewarp(plan: NonNullable<ExperimentPlan["timewarp"]>,
       results.push({ kind: "timewarp", status: "error", title: `Time-warp ${probe.name}`, detail: `skipped: ${(err as Error).message}` });
       continue;
     }
-    // Sort + de-dup offsets, cap at 8, and ensure offset 0 (the freshness baseline) is present.
-    const offsets = [...new Set([0, ...probe.offsetsSec])].filter((n) => Number.isFinite(n) && n >= 0).sort((a, b) => a - b).slice(0, 8);
+    // Sort + de-dup, ensure offset 0 (the freshness baseline). Do NOT slice the tail:
+    // sanitizePlan already capped these while deliberately preserving the largest
+    // (post-expiry) offset. Slicing here would delete the only sample that can prove
+    // stale-after-expiry, turning a real bug into a false pass.
+    const offsets = [...new Set([0, ...probe.offsetsSec])]
+      .filter((n) => Number.isFinite(n) && n >= 0)
+      .sort((a, b) => a - b);
     try {
       const samples: { offset: number; status: number; body: string; generatedAt?: string; cacheState?: string }[] = [];
       for (const offset of offsets) {

@@ -126,10 +126,21 @@ const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.
 
 // Total experiment budget ceilings. Per-route clamps alone are not enough: without
 // these, a bad/hostile model response could schedule dozens of load targets.
-const MAX_ROUTES = 5;
-const MAX_PROBES = 5;
+// Sized so the worst case stays under the CI client's 300s timeout:
+//   3 routes x 20s load + 3 probes x 8 offsets x 5s = 60s + 120s = 180s.
+const MAX_ROUTES = 3;
+const MAX_PROBES = 3;
 const MAX_OFFSETS = 8;
 const METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
+
+/** Cap a list of offsets without ever discarding the largest (post-expiry) probe. */
+function capOffsets(offsets: number[], max: number): number[] {
+  const sorted = [...new Set(offsets)].filter((n) => Number.isFinite(n) && n >= 0).sort((a, b) => a - b);
+  if (sorted.length <= max) return sorted;
+  // Keep the first max-1 (baseline + early samples) AND the largest, which is the
+  // one that actually proves stale-after-expiry. Naively slicing would delete it.
+  return [...sorted.slice(0, max - 1), sorted[sorted.length - 1]];
+}
 
 /**
  * Deterministic floor + clamp over the LLM's plan. Gemini may ADD experiments and
@@ -146,17 +157,28 @@ export function sanitizePlan(plan: ExperimentPlan, diff: string): ExperimentPlan
 
   const load = plan.load ?? floor.load;
   if (load) {
-    const picked = load.routes?.length ? load.routes : floor.load?.routes ?? [];
-    // Cap the TOTAL experiment budget, not just per-route settings: a bad model
-    // response must not be able to schedule an unbounded number of load targets.
-    // Also drop anything that isn't a standard HTTP method.
-    const routes = picked
-      .filter((r) => METHODS.has(String(r.method ?? "").toUpperCase()))
-      .slice(0, MAX_ROUTES);
+    // UNION the model's routes with the heuristic floor's — never let the model's
+    // choices REPLACE (and thereby shrink) the floor. Then normalize + cap.
+    const merged = new Map<string, { method: string; path: string }>();
+    for (const r of [...(floor.load?.routes ?? []), ...(load.routes ?? [])]) {
+      const method = String(r?.method ?? "GET").toUpperCase();
+      const path = String(r?.path ?? "");
+      // Only probe paths that actually appear in the diff — the model may not
+      // invent endpoints, and a method filter must not be able to empty the plan.
+      if (!METHODS.has(method) || !path.startsWith("/") || !diff.includes(path)) continue;
+      merged.set(`${method} ${path}`, { method, path });
+    }
+    let routes = [...merged.values()].slice(0, MAX_ROUTES);
+    // Never let filtering silently produce an empty plan for a diff the floor
+    // considered risky: fall back to the floor's routes as GET probes.
+    if (!routes.length && floor.load?.routes?.length) {
+      routes = floor.load.routes.map((r) => ({ method: "GET", path: r.path })).slice(0, MAX_ROUTES);
+    }
     out.load = {
       reason: load.reason ?? "load",
       routes,
-      durationSec: clamp(load.durationSec, 5, 30),
+      // 20s max (not 30) so the worst-case total run stays under CI's 300s timeout.
+      durationSec: clamp(load.durationSec, 5, 20),
       connections: clamp(load.connections, 10, 50),
       p95BudgetMs: clamp(load.p95BudgetMs, 50, 2000), // model cannot set an unreachably high budget
     };
@@ -164,18 +186,21 @@ export function sanitizePlan(plan: ExperimentPlan, diff: string): ExperimentPlan
 
   const tw = plan.timewarp ?? floor.timewarp;
   if (tw) {
-    const probes = (tw.probes?.length ? tw.probes : floor.timewarp?.probes ?? [])
+    // Union model probes with the floor's, so the model cannot shrink coverage.
+    const candidates = [...(floor.timewarp?.probes ?? []), ...(tw.probes ?? [])];
+    const byPath = new Map<string, (typeof candidates)[number]>();
+    for (const p of candidates) if (p?.path) byPath.set(p.path, p);
+    const probes = [...byPath.values()]
       .slice(0, MAX_PROBES)
       .map((p) => {
         const freshWindowSec = p.freshWindowSec ?? floor.timewarp?.probes[0]?.freshWindowSec;
-        let offsetsSec = [...new Set([0, ...(p.offsetsSec ?? [])])]
-          .filter((n) => Number.isFinite(n) && n >= 0)
-          .sort((a, b) => a - b)
-          .slice(0, MAX_OFFSETS);
-        // Guarantee at least one probe strictly past the fresh window — otherwise
-        // a stale-after-expiry bug can never be observed.
-        if (freshWindowSec && !offsetsSec.some((o) => o > freshWindowSec)) offsetsSec.push(freshWindowSec * 2 + 1);
-        return { ...p, offsetsSec, freshWindowSec };
+        const raw = [0, ...(p.offsetsSec ?? [])];
+        // Guarantee a probe strictly PAST the fresh window BEFORE capping — a
+        // stale-after-expiry bug is only observable past expiry. capOffsets() then
+        // caps while preserving the largest offset, so the post-expiry sample can
+        // never be sliced away (that would silently turn a real bug into a pass).
+        if (freshWindowSec && !raw.some((o) => o > freshWindowSec)) raw.push(freshWindowSec * 2 + 1);
+        return { ...p, offsetsSec: capOffsets(raw, MAX_OFFSETS), freshWindowSec };
       });
     out.timewarp = { reason: tw.reason ?? "timewarp", probes };
   }
