@@ -69,7 +69,14 @@ export async function generateJson<T>(system: string, user: string, temperature 
       const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(120_000) });
       const data = (await res.json()) as any;
       if (data.error) throw new Error(`${data.error.status}: ${String(data.error.message).slice(0, 200)}`);
-      const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      // Gemini 3.x can return reasoning ("thought") parts alongside the answer.
+      // Concatenating those would corrupt the JSON, so keep only answer parts.
+      const parts: any[] = data.candidates?.[0]?.content?.parts ?? [];
+      const text = parts
+        .filter((p) => p?.thought !== true && typeof p?.text === "string")
+        .map((p) => p.text)
+        .join("");
+      if (!text.trim()) throw new Error("empty model response");
       return JSON.parse(text) as T;
     } catch (err) {
       console.error(`[gemini] call failed (attempt ${attempt}/2):`, (err as Error).message);

@@ -1,7 +1,7 @@
 export const config = {
   port: Number(process.env.PORT ?? 8080),
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
   // Vertex AI mode (the "Google Cloud way"): set GOOGLE_CLOUD_PROJECT to route all
   // Gemini calls through aiplatform.googleapis.com with OAuth instead of an API key.
   gcpProject: process.env.GOOGLE_CLOUD_PROJECT ?? "",
