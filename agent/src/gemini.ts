@@ -71,16 +71,26 @@ export function decideVerdict(results: ExperimentResult[]): { decision: Verdict[
       // correctness block (fail-safe), not silently downgraded.
       return !Number.isFinite(rate) || rate >= 50;
     });
-  // A diff that produced no executed experiment (only skipped/errored) is NOT
-  // ship-eligible on the strength of "nothing ran" — require a real pass.
   const executed = results.filter((r) => r.status === "pass" || r.status === "fail" || r.status === "warn");
-  const onlySkipped = executed.length === 0 && results.some((r) => r.status === "skipped") && results.every((r) => r.status === "skipped");
+  // A genuinely inert diff (docs/config) legitimately runs nothing.
+  const onlySkipped = results.length > 0 && results.every((r) => r.status === "skipped");
+
   let decision: Verdict["decision"];
-  if (fails.length >= 2 || correctnessFail) decision = "block";
-  else if (fails.length === 1 || errors.length || warns.length) decision = "ship-with-warnings";
-  else if (onlySkipped) decision = "ship"; // genuinely inert diff (docs/config) — safe to ship
-  else if (executed.length === 0) decision = "ship-with-warnings"; // couldn't gather evidence
-  else decision = "ship";
+  if (fails.length >= 2 || correctnessFail) {
+    // Measured failure — the only thing that blocks.
+    decision = "block";
+  } else if (errors.length || (executed.length === 0 && !onlySkipped)) {
+    // We tried to gather evidence and could not (probe errored, target unreachable,
+    // timeout). Fail CLOSED: "no evidence" must never be treated as "safe to ship",
+    // otherwise a flaky target silently merges a risky change.
+    decision = "inconclusive";
+  } else if (fails.length === 1 || warns.length) {
+    decision = "ship-with-warnings";
+  } else if (onlySkipped) {
+    decision = "ship";
+  } else {
+    decision = "ship";
+  }
   return { decision, confidence: 1 };
 }
 
@@ -114,6 +124,13 @@ function extractRoutes(diff: string): { method: string; path: string }[] {
 
 const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo);
 
+// Total experiment budget ceilings. Per-route clamps alone are not enough: without
+// these, a bad/hostile model response could schedule dozens of load targets.
+const MAX_ROUTES = 5;
+const MAX_PROBES = 5;
+const MAX_OFFSETS = 8;
+const METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
+
 /**
  * Deterministic floor + clamp over the LLM's plan. Gemini may ADD experiments and
  * choose paths, but it cannot REMOVE experiments the heuristic would run for a risky
@@ -129,7 +146,13 @@ export function sanitizePlan(plan: ExperimentPlan, diff: string): ExperimentPlan
 
   const load = plan.load ?? floor.load;
   if (load) {
-    const routes = load.routes?.length ? load.routes : floor.load?.routes ?? [];
+    const picked = load.routes?.length ? load.routes : floor.load?.routes ?? [];
+    // Cap the TOTAL experiment budget, not just per-route settings: a bad model
+    // response must not be able to schedule an unbounded number of load targets.
+    // Also drop anything that isn't a standard HTTP method.
+    const routes = picked
+      .filter((r) => METHODS.has(String(r.method ?? "").toUpperCase()))
+      .slice(0, MAX_ROUTES);
     out.load = {
       reason: load.reason ?? "load",
       routes,
@@ -141,14 +164,19 @@ export function sanitizePlan(plan: ExperimentPlan, diff: string): ExperimentPlan
 
   const tw = plan.timewarp ?? floor.timewarp;
   if (tw) {
-    const probes = (tw.probes?.length ? tw.probes : floor.timewarp?.probes ?? []).map((p) => {
-      const freshWindowSec = p.freshWindowSec ?? floor.timewarp?.probes[0]?.freshWindowSec;
-      let offsetsSec = [...new Set([0, ...(p.offsetsSec ?? [])])].filter((n) => Number.isFinite(n) && n >= 0);
-      // Guarantee at least one probe strictly past the fresh window — otherwise
-      // a stale-after-expiry bug can never be observed.
-      if (freshWindowSec && !offsetsSec.some((o) => o > freshWindowSec)) offsetsSec.push(freshWindowSec * 2 + 1);
-      return { ...p, offsetsSec, freshWindowSec };
-    });
+    const probes = (tw.probes?.length ? tw.probes : floor.timewarp?.probes ?? [])
+      .slice(0, MAX_PROBES)
+      .map((p) => {
+        const freshWindowSec = p.freshWindowSec ?? floor.timewarp?.probes[0]?.freshWindowSec;
+        let offsetsSec = [...new Set([0, ...(p.offsetsSec ?? [])])]
+          .filter((n) => Number.isFinite(n) && n >= 0)
+          .sort((a, b) => a - b)
+          .slice(0, MAX_OFFSETS);
+        // Guarantee at least one probe strictly past the fresh window — otherwise
+        // a stale-after-expiry bug can never be observed.
+        if (freshWindowSec && !offsetsSec.some((o) => o > freshWindowSec)) offsetsSec.push(freshWindowSec * 2 + 1);
+        return { ...p, offsetsSec, freshWindowSec };
+      });
     out.timewarp = { reason: tw.reason ?? "timewarp", probes };
   }
 

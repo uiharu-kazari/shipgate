@@ -10,6 +10,27 @@ import type { AnalyzeRequest } from "./types.js";
 
 const app = new Hono();
 
+/**
+ * Fail CLOSED on misconfiguration. Locally (no K_SERVICE) the agent stays open for
+ * convenience, but on Cloud Run a missing SHIPGATE_TOKEN or SHIPGATE_ALLOWED_TARGETS
+ * would silently turn the public agent into an unauthenticated load-test reflector and
+ * an unbounded Vertex cost sink. Refuse to start instead of degrading quietly.
+ */
+function assertProductionConfig(): void {
+  const onCloudRun = !!process.env.K_SERVICE;
+  if (!onCloudRun) return;
+  const missing: string[] = [];
+  if (!config.authToken) missing.push("SHIPGATE_TOKEN");
+  if (!config.allowedTargetHosts.length) missing.push("SHIPGATE_ALLOWED_TARGETS");
+  if (missing.length) {
+    throw new Error(
+      `Refusing to start: missing required production config: ${missing.join(", ")}. ` +
+        `Without these, /analyze is unauthenticated and targetUrl is unrestricted.`
+    );
+  }
+}
+assertProductionConfig();
+
 // Note: /healthz is intercepted by Google's frontend on *.run.app — /api/health is the
 // alias that works everywhere.
 app.get("/api/health", async (c) => {

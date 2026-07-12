@@ -4,6 +4,11 @@ on:
   pull_request:
     branches: [main]
 
+# One gate run per PR: a new push supersedes the in-flight preview deploy + experiments.
+concurrency:
+  group: shipgate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 # Per-PR preview: this workflow deploys the PR's ACTUAL code to a temporary
 # Cloud Run service, then has ShipGate run its experiments against that build —
 # so the verdict reflects the real diff, not a fixed staging app.
@@ -30,9 +35,8 @@ jobs:
         id: preview
         run: |
           SERVICE="shipgate-demo-pr-${{ github.event.pull_request.number }}"
-          # --source . builds the app-under-test's root Dockerfile. SHIPGATE_TESTING=1
-          # is set explicitly (not just via the Dockerfile ENV) so the virtual-clock
-          # header the time-warp probe relies on is always honored on the preview.
+          # SHIPGATE_TESTING=1 set explicitly (not just via Dockerfile ENV) so the
+          # virtual-clock header the time-warp probe relies on is always honored.
           gcloud run deploy "$SERVICE" \
             --source . \
             --project "${{ vars.GCP_PROJECT }}" \
@@ -67,7 +71,7 @@ jobs:
         with:
           script: |
             const v = require('/tmp/verdict.json');
-            const icon = { ship: '🟢', 'ship-with-warnings': '🟡', block: '🔴' }[v.verdict.decision];
+            const icon = { ship: '🟢', 'ship-with-warnings': '🟡', block: '🔴', inconclusive: '⚪' }[v.verdict.decision];
             const preview = "${{ steps.preview.outputs.url }}";
             const body = [
               `## ${icon} ShipGate verdict: **${v.verdict.decision}**`,
@@ -80,10 +84,28 @@ jobs:
               '### Advice',
               ...v.verdict.advice.map(a => `- ${a}`),
             ].join('\n');
-            await github.rest.issues.createComment({
-              ...context.repo, issue_number: context.issue.number, body,
+            // Upsert: update our existing verdict comment instead of spamming a new
+            // one on every run.
+            const marker = '<!-- shipgate-verdict -->';
+            const withMarker = marker + '\n' + body;
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number, per_page: 100,
             });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: existing.id, body: withMarker,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body: withMarker,
+              });
+            }
 
+      # Fail CLOSED. "inconclusive" means the experiments could not produce evidence
+      # (probe errored / target unreachable) — that must never merge as if it passed.
       - name: Gate
-        if: steps.verdict.outputs.decision == 'block'
-        run: echo "ShipGate blocked this release" && exit 1
+        if: steps.verdict.outputs.decision == 'block' || steps.verdict.outputs.decision == 'inconclusive'
+        run: |
+          echo "ShipGate did not clear this release: ${{ steps.verdict.outputs.decision }}"
+          exit 1

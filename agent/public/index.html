@@ -41,6 +41,7 @@
   .ship { background:rgba(63,185,80,.15); color:var(--ship) }
   .ship-with-warnings { background:rgba(210,153,34,.15); color:var(--warn) }
   .block { background:rgba(248,81,73,.15); color:var(--block) }
+  .inconclusive { background:rgba(139,148,158,.18); color:var(--dim) }
   .repo { font-weight:600; font-size:.95rem }
   .meta { color:var(--dim); font-size:.82rem; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center }
   .meta .sep { opacity:.5 }
@@ -95,11 +96,12 @@ async function load() {
   const feed = document.getElementById('feed');
   const tiles = document.getElementById('tiles');
 
-  const counts = { total: docs.length, block:0, 'ship-with-warnings':0, ship:0 };
+  const counts = { total: docs.length, block:0, inconclusive:0, 'ship-with-warnings':0, ship:0 };
   docs.forEach(d => { const dec = d.verdict.decision; if (dec in counts) counts[dec]++; });
   tiles.innerHTML = `
     <div class="tile"><div class="n">${counts.total}</div><div class="k">Total runs</div></div>
     <div class="tile block"><div class="n">${counts.block}</div><div class="k">Block</div></div>
+    <div class="tile"><div class="n">${counts.inconclusive}</div><div class="k">Inconclusive</div></div>
     <div class="tile warn"><div class="n">${counts['ship-with-warnings']}</div><div class="k">Ship w/ warnings</div></div>
     <div class="tile ship"><div class="n">${counts.ship}</div><div class="k">Ship</div></div>`;
 

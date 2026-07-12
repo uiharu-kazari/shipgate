@@ -6,6 +6,9 @@
     "agent",
     "demo-app"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev:agent": "npm run dev -w agent",
     "dev:demo": "npm run dev -w demo-app",

@@ -52,16 +52,22 @@ test("decideVerdict computes the documented release-gate branches", () => {
       decision: "block",
     },
     {
-      name: "all-error warnings",
+      // Probes errored: we have NO evidence. Must fail closed, not pass as a warning.
+      name: "all-error is inconclusive (fails closed)",
       results: [result({ status: "error" }), result({ kind: "timewarp", status: "error" })],
-      decision: "ship-with-warnings",
+      decision: "inconclusive",
     },
     {
-      // No experiment ran at all — cannot ship on zero evidence (hardening: a
-      // plan that yields no executed experiments is not ship-eligible).
-      name: "empty results",
+      // A single errored probe alongside passes still means incomplete evidence.
+      name: "partial error is inconclusive",
+      results: [result({ kind: "load", status: "pass" }), result({ kind: "timewarp", status: "error" })],
+      decision: "inconclusive",
+    },
+    {
+      // No experiment ran at all — cannot ship on zero evidence.
+      name: "empty results is inconclusive",
       results: [],
-      decision: "ship-with-warnings",
+      decision: "inconclusive",
     },
     {
       // Genuinely inert diff (docs/config): a single explicit "skipped" is safe to ship.

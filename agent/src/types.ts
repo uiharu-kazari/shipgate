@@ -48,7 +48,10 @@ export interface O11yFinding {
 }
 
 export interface Verdict {
-  decision: "ship" | "ship-with-warnings" | "block";
+  // "inconclusive" = the experiments could not produce evidence (probe errored /
+  // target unreachable). It is NOT a pass: the gate fails closed, because the whole
+  // premise is that you may not ship without evidence.
+  decision: "ship" | "ship-with-warnings" | "block" | "inconclusive";
   confidence: number; // 0-1
   reasons: string[];
   advice: string[];

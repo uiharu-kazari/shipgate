@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck agent
+        run: npx tsc --noEmit -p agent/tsconfig.json
+
+      - name: Typecheck demo-app
+        run: npx tsc --noEmit -p demo-app/tsconfig.json
+
+      - name: Test
+        run: node --import tsx --test agent/test/experiments.test.mts
