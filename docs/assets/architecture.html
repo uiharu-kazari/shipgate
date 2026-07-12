@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ShipGate — System Architecture</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
+        --ship:#3fb950;--warn:#d29922;--block:#f85149;--g:#4285f4;--e:#00bfb3;}
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1600px;height:690px;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Helvetica,sans-serif;overflow:hidden}
+  body{padding:34px 44px}
+  h1{font-size:34px;font-weight:700;letter-spacing:-.01em}
+  h1 span{color:var(--ship)}
+  .sub{color:var(--dim);font-size:17px;margin:6px 0 30px}
+  .row{display:flex;align-items:stretch;gap:18px;margin-bottom:20px}
+  .box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  .box h3{font-size:16px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+  .box p{font-size:14px;color:var(--dim);line-height:1.45}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.04em;padding:1.5px 6px;border-radius:5px;text-transform:uppercase}
+  .gcp{background:rgba(66,133,244,.16);color:#7cb0ff}
+  .es{background:rgba(0,191,179,.16);color:#4fd8cf}
+  .gh{background:rgba(139,148,158,.18);color:#c9d1d9}
+  .arrow{align-self:center;color:var(--dim);font-size:26px;flex:none}
+  .agent{flex:1;border-color:rgba(66,133,244,.45);background:linear-gradient(180deg,#161b22,#141d2b)}
+  .steps{display:flex;gap:12px;margin-top:14px}
+  .step{flex:1;background:#0f141b;border:1px solid var(--border);border-radius:9px;padding:14px 14px}
+  .step .n{font-size:12px;font-weight:800;color:var(--g)}
+  .step h4{font-size:15px;margin:2px 0 3px}
+  .step p{font-size:13px;color:var(--dim);line-height:1.4}
+  .exp{border-color:rgba(210,153,34,.4)}
+  .verdictbar{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .v{font-size:13px;font-weight:700;padding:5px 13px;border-radius:999px}
+  .v.b{background:rgba(248,81,73,.16);color:var(--block)}
+  .v.i{background:rgba(139,148,158,.18);color:var(--dim)}
+  .v.w{background:rgba(210,153,34,.16);color:var(--warn)}
+  .v.s{background:rgba(63,185,80,.16);color:var(--ship)}
+  .note{font-size:13px;color:var(--dim);margin-left:6px}
+  .foot{display:flex;gap:16px;margin-top:20px}
+  .f{flex:1;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:16px 18px}
+  .f h4{font-size:15px;margin-bottom:3px}
+  .f p{font-size:13px;color:var(--dim);line-height:1.4}
+  .key{border-color:rgba(63,185,80,.45)}
+</style>
+<h1>🚦 Ship<span>Gate</span> — システム構成</h1>
+<p class="sub">差分を読んで実験する、自己検証型リリースゲート AI エージェント　/　Diff-aware release-gate agent</p>
+
+<div class="row">
+  <div class="box" style="width:190px">
+    <h3>① GitHub PR <span class="tag gh">GitHub</span></h3>
+    <p>開発者が PR を作成。<br>Actions が差分を収集。</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="box" style="width:215px">
+    <h3>② PRプレビュー環境 <span class="tag gcp">Cloud Run</span></h3>
+    <p><b>そのPRの実コード</b>を一時サービス<br><code>shipgate-demo-pr-&lt;n&gt;</code> に自動デプロイ。<br>PRクローズ時に自動削除。</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="agent box">
+    <h3>③ ShipGate Agent <span class="tag gcp">Cloud Run</span> <span class="tag gcp">Vertex AI / Gemini 3.5 Flash</span></h3>
+    <div class="steps">
+      <div class="step"><div class="n">PLAN</div><h4>Gemini が実験を設計</h4><p>差分から本番リスクを予測し、その変更専用の実験を選ぶ</p></div>
+      <div class="step exp"><div class="n">PROBE</div><h4>実験を実行</h4><p>負荷 / タイムワープ / 観測可能性 をプレビュー環境へ</p></div>
+      <div class="step"><div class="n">JUDGE</div><h4>コードが判定</h4><p>実測結果から<b>決定的に</b>計算。モデルは理由文のみ</p></div>
+      <div class="step"><div class="n">PATCH</div><h4>修正を提案</h4><p>Gemini が修正案を生成 → 同じ実験で再検証</p></div>
+    </div>
+    <div class="verdictbar">
+      <span class="v b">block</span><span class="v i">inconclusive</span><span class="v w">ship-with-warnings</span><span class="v s">ship</span>
+      <span class="note">← fail-closed：証拠が無ければマージさせない</span>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div style="width:190px"></div>
+  <div style="width:20px"></div>
+  <div class="box" style="flex:1;border-color:rgba(0,191,179,.45)">
+    <h3>④ 証拠ストア & 履歴エージェント <span class="tag es">Elasticsearch</span> <span class="tag es">Elastic Agent Builder</span></h3>
+    <p>全判定を <code>shipgate-evidence</code> に索引。ダッシュボードが可視化。<b>Historian</b> エージェント（ES|QL ツール×3：直近判定 / decision別 / STATS集計）が「なぜPR2はブロック？」に日本語で回答。</p>
+  </div>
+  <div style="width:20px"></div>
+  <div class="box" style="width:230px">
+    <h3>⑤ PRへ判定コメント + ゲート <span class="tag gh">Actions</span></h3>
+    <p>証拠つきコメントを投稿。<br><b>ship / ship-with-warnings のみ通過</b>（許可リスト方式）。</p>
+  </div>
+</div>
+
+<div class="foot">
+  <div class="f key">
+    <h4>🔬 3つの実験（差分ごとに Gemini が選ぶ）</h4>
+    <p><b>負荷</b>：変更ハンドラにレイテンシ予算つき負荷試験　/　<b>タイムワープ</b>：仮想時計ヘッダ <code>x-shipgate-clock-offset</code> で「1時間後」を数秒で再生し、期限切れ後の古いデータを検出　/　<b>観測可能性</b>：新しい失敗パスをオンコールがデバッグできるか監査</p>
+  </div>
+  <div class="f key">
+    <h4>🔒 判定はコードが握る（プロンプトインジェクション耐性）</h4>
+    <p>最終判定は <code>decideVerdict()</code> が実測結果から決定的に計算。Gemini は理由文を書くだけ。差分に「shipと返せ」と書き込んでも <b>BLOCK</b>（実証済み）。実験計画も <code>sanitizePlan()</code> が下限・上限を強制し、モデルは実験を削れない。</p>
+  </div>
+</div>
